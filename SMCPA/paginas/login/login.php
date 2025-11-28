@@ -22,8 +22,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $conn = $db->conexao();
 
         try {
-            // Prepara a consulta SQL - CORRIGIDO: email minúsculo na tabela
-            $stmt = $conn->prepare("SELECT id, usuario, email, senha FROM usuarios WHERE email = :email");
+            // Prepara a consulta SQL - Busca também o campo is_admin
+            $stmt = $conn->prepare("SELECT id, usuario, email, senha, is_admin FROM usuarios WHERE email = :email");
             $stmt->bindParam(':email', $email);
             $stmt->execute();
             
@@ -39,9 +39,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $_SESSION['id'] = $user['id'];
                     $_SESSION['usuario'] = $user['usuario'];
                     $_SESSION['email'] = $user['email'];
+                    
+                    // Verifica se o usuário é administrador
+                    $isAdmin = isset($user['is_admin']) && $user['is_admin'] == 1;
+                    $_SESSION['is_admin'] = $isAdmin;
 
-                    // Redireciona para o dashboard
-                    header('Location: /SMCPA/paginas/dashboard/dashboard.php');
+                    // Redireciona conforme o tipo de usuário
+                    if ($isAdmin) {
+                        // Se for admin, vai para dashboardadm.php
+                        header('Location: /SMCPA/paginas/dashboard/dashboardadm.php');
+                    } else {
+                        // Se não for admin, vai para dashboard.php
+                        header('Location: /SMCPA/paginas/dashboard/dashboard.php');
+                    }
                     exit();
                 } else {
                     $erro_login = "Senha incorreta!";
@@ -73,6 +83,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     <h1 class="h1">Login</h1>
     
+    <?php if (isset($_GET['logout']) && $_GET['logout'] === 'success'): ?>
+      <div style="background-color: #d4edda; color: #155724; padding: 10px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #c3e6cb;">
+        Você saiu com sucesso! Faça login novamente para continuar.
+      </div>
+    <?php endif; ?>
+    
+    <?php if (isset($_GET['erro']) && $_GET['erro'] === 'acesso_negado'): ?>
+      <div style="background-color: #f8d7da; color: #721c24; padding: 10px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #f5c6cb;">
+        Acesso negado! Apenas administradores podem acessar essa página.
+      </div>
+    <?php endif; ?>
+    
     <?php if (isset($erro_login)): ?>
       <div style="background-color: #f8d7da; color: #721c24; padding: 10px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #f5c6cb;">
         <?php echo htmlspecialchars($erro_login); ?>
@@ -87,9 +109,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
       <input type="password" id="senha" name="senha" placeholder="Digite sua senha" required>
       
       <button type="submit">Entrar</button>
+      <div class="h1"><a href="../esqsenha/altsenha.php">Esqueceu a senha?</a></div>
+      <button type="button" onclick="window.location.href='../cadastro/cadastro.php'" style="margin-top: 10px; background: #6c757d; color: #fff; border: none; border-radius: 6px; cursor: pointer; width: 100%; padding: 10px; font-weight: 500;" onmouseover="this.style.background='#5a6268'" onmouseout="this.style.background='#6c757d'">Ir para o Cadastro</button>
     </form>
-
-    <div class="h1"><a href="../esqsenha/altsenha.php">Esqueceu a senha?</a></div>
   </div>
 </body>
 </html>

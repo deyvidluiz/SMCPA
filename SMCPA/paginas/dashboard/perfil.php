@@ -30,12 +30,34 @@ if (!$estaLogado || !$usuarioID) {
     exit;
 }
 
+// Headers para prevenir cache e garantir que o botão voltar não funcione após logout
+header("Cache-Control: no-cache, no-store, must-revalidate"); // HTTP 1.1
+header("Pragma: no-cache"); // HTTP 1.0
+header("Expires: 0"); // Proxies
+
 // Incluir arquivos de conexão
 require_once('../../config.php'); 
 include_once(BASE_URL.'/conexao/conexao.php');
 
 $db = new Database();
 $pdo = $db->conexao();
+
+// Verificar se é administrador
+$isAdmin = false;
+if (isset($_SESSION['is_admin'])) {
+    $isAdmin = $_SESSION['is_admin'] == 1;
+} else {
+    try {
+        $stmtAdmin = $pdo->prepare("SELECT is_admin FROM usuarios WHERE id = :id");
+        $stmtAdmin->bindParam(':id', $usuarioID, PDO::PARAM_INT);
+        $stmtAdmin->execute();
+        $userAdmin = $stmtAdmin->fetch(PDO::FETCH_ASSOC);
+        $isAdmin = ($userAdmin && isset($userAdmin['is_admin']) && $userAdmin['is_admin'] == 1);
+        $_SESSION['is_admin'] = $isAdmin ? 1 : 0;
+    } catch (PDOException $e) {
+        $isAdmin = false;
+    }
+}
 
 // Verificar se está visualizando perfil de outro usuário (admin)
 $usuarioVisualizadoID = $usuarioID; // Por padrão, visualiza o próprio perfil
@@ -52,7 +74,19 @@ if (isset($_GET['id']) && !empty($_GET['id'])) {
 
 // Buscar dados do usuário
 try {
-    $stmt = $pdo->prepare("SELECT id, usuario, email, Imagem, data_cadastro FROM usuarios WHERE id = :id");
+    // Verificar se a coluna localizacao existe
+    try {
+        $stmtCheck = $pdo->query("SHOW COLUMNS FROM usuarios LIKE 'localizacao'");
+        $colunaExiste = $stmtCheck->rowCount() > 0;
+        
+        if (!$colunaExiste) {
+            $pdo->exec("ALTER TABLE usuarios ADD COLUMN localizacao VARCHAR(255) DEFAULT NULL");
+        }
+    } catch (PDOException $e) {
+        // Ignorar erro - coluna provavelmente já existe
+    }
+    
+    $stmt = $pdo->prepare("SELECT id, usuario, email, Imagem, data_cadastro, localizacao FROM usuarios WHERE id = :id");
     $stmt->bindParam(':id', $usuarioVisualizadoID, PDO::PARAM_INT);
     $stmt->execute();
     $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -148,6 +182,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['alterar_foto']) && $e
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['atualizar_dados']) && $ehProprioPerfil) {
     $novoNome = trim($_POST['usuario']);
     $novoEmail = trim($_POST['email']);
+    $novaLocalizacao = trim($_POST['localizacao'] ?? '');
     
     if (empty($novoNome) || empty($novoEmail)) {
         $erro = "Nome e email são obrigatórios.";
@@ -164,10 +199,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['atualizar_dados']) &&
             if ($stmt->rowCount() > 0) {
                 $erro = "Este email já está sendo usado por outro usuário.";
             } else {
-                // Atualizar dados
-                $stmt = $pdo->prepare("UPDATE usuarios SET usuario = :usuario, email = :email WHERE id = :id");
+                // Atualizar dados (incluindo localização)
+                $stmt = $pdo->prepare("UPDATE usuarios SET usuario = :usuario, email = :email, localizacao = :localizacao WHERE id = :id");
                 $stmt->bindParam(':usuario', $novoNome);
                 $stmt->bindParam(':email', $novoEmail);
+                $stmt->bindParam(':localizacao', $novaLocalizacao);
                 $stmt->bindParam(':id', $usuarioID, PDO::PARAM_INT);
                 $stmt->execute();
 
@@ -178,6 +214,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['atualizar_dados']) &&
                 // Atualizar variável local
                 $usuario['usuario'] = $novoNome;
                 $usuario['email'] = $novoEmail;
+                $usuario['localizacao'] = $novaLocalizacao;
                 
                 $sucesso = "Dados atualizados com sucesso!";
             }
@@ -281,66 +318,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deletar_conta']) && $
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Meu Perfil - SMCPA</title>
     <link rel="shortcut icon" href="/SMCPA/imgs/favicon.ico" type="image/x-icon">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <style>
-        body {
-            background-color: #f8f9fa;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        .perfil-container {
-            max-width: 1000px;
-            margin: 30px auto;
-            padding: 20px;
-        }
-        .perfil-imagem {
-            width: 150px;
-            height: 150px;
-            object-fit: cover;
-            border-radius: 50%;
-            border: 4px solid #007bff;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-        }
-        .card {
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            border: none;
-            margin-bottom: 20px;
-        }
-        .card-header {
-            background-color: #007bff;
-            color: white;
-            font-weight: bold;
-        }
-        .btn-danger-custom {
-            background-color: #dc3545;
-            border-color: #dc3545;
-        }
-        .praga-item {
-            padding: 10px;
-            border-left: 3px solid #007bff;
-            margin-bottom: 10px;
-            background-color: #f8f9fa;
-        }
-    </style>
+    <link rel="stylesheet" href="perfil.css">
 </head>
 <body>
     <div class="perfil-container">
         <!-- Navegação Superior -->
         <div class="d-flex justify-content-between mb-4">
+            <?php 
+            // Determinar para qual dashboard voltar
+            $dashboardUrl = $isAdmin ? "dashboardadm.php" : "../dashboard/dashboard.php";
+            ?>
+            <a href="<?= $dashboardUrl; ?>" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Voltar ao Dashboard
+            </a>
             <?php if ($ehProprioPerfil): ?>
-                <a href="../dashboard/dashboard.php" class="btn btn-secondary">
-                    <i class="bi bi-arrow-left"></i> Voltar ao Dashboard
-                </a>
-            <?php else: ?>
-                <a href="dashboardadm.php" class="btn btn-secondary">
-                    <i class="bi bi-arrow-left"></i> Voltar ao Dashboard Admin
-                </a>
-            <?php endif; ?>
-            <?php if ($ehProprioPerfil): ?>
-                <a href="../login/login.php" class="btn btn-danger">
+                <a href="../login/logout.php" class="btn btn-danger">
                     <i class="bi bi-box-arrow-right"></i> Sair
                 </a>
             <?php endif; ?>
@@ -437,6 +437,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deletar_conta']) && $
                             </div>
                         </div>
 
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label for="localizacao" class="form-label">Localização/Região</label>
+                                <input type="text" class="form-control" id="localizacao" name="localizacao" 
+                                       value="<?php echo htmlspecialchars($usuario['localizacao'] ?? ''); ?>" 
+                                       placeholder="Ex: Zona Rural de São Paulo, Fazenda ABC, etc.">
+                                <small class="text-muted">Esta informação será usada para mostrar surtos próximos na sua região</small>
+                            </div>
+                        </div>
+
                         <button type="submit" name="atualizar_dados" class="btn btn-success">
                             <i class="bi bi-check-circle"></i> Salvar Alterações
                         </button>
@@ -451,6 +461,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deletar_conta']) && $
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Email</label>
                             <input type="email" class="form-control" value="<?php echo htmlspecialchars($usuario['email']); ?>" readonly>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            <label class="form-label">Localização/Região</label>
+                            <input type="text" class="form-control" value="<?php echo htmlspecialchars($usuario['localizacao'] ?? 'Não informado'); ?>" readonly>
                         </div>
                     </div>
                 <?php endif; ?>
@@ -521,9 +537,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deletar_conta']) && $
                                     <i class="bi bi-calendar"></i> Data: <?php echo date('d/m/Y', strtotime($praga['Data_Aparicao'])); ?>
                                 </small>
                                 <div class="mt-2">
+                                    <a href="../cadastro/atualizar_praga.php?id=<?php echo $praga['ID']; ?>" 
+                                       class="btn btn-sm btn-primary">
+                                        <i class="bi bi-pencil-square"></i> Atualizar
+                                    </a>
                                     <a href="../detalhes/detalhes_praga.php?id=<?php echo $praga['ID']; ?>" 
                                        class="btn btn-sm btn-info">
                                         <i class="bi bi-eye"></i> Ver Detalhes
+                                    </a>
+                                    <a href="gerar_relatorio.php?id=<?php echo $praga['ID']; ?>" 
+                                       class="btn btn-sm btn-success">
+                                        <i class="bi bi-file-text"></i> Relatório
                                     </a>
                                 </div>
                             </div>

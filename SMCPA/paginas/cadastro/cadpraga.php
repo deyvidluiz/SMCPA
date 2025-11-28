@@ -33,6 +33,25 @@ if (!$estaLogado || !$usuarioID) {
 require_once('../../config.php');
 include_once(BASE_URL.'/conexao/conexao.php');
 
+// Verificar se é administrador
+$db = new Database();
+$pdo = $db->conexao();
+$isAdmin = false;
+if (isset($_SESSION['is_admin'])) {
+    $isAdmin = $_SESSION['is_admin'] == 1;
+} else {
+    try {
+        $stmtAdmin = $pdo->prepare("SELECT is_admin FROM usuarios WHERE id = :id");
+        $stmtAdmin->bindParam(':id', $usuarioID, PDO::PARAM_INT);
+        $stmtAdmin->execute();
+        $userAdmin = $stmtAdmin->fetch(PDO::FETCH_ASSOC);
+        $isAdmin = ($userAdmin && isset($userAdmin['is_admin']) && $userAdmin['is_admin'] == 1);
+        $_SESSION['is_admin'] = $isAdmin ? 1 : 0;
+    } catch (PDOException $e) {
+        $isAdmin = false;
+    }
+}
+
 // ====== CLASSE UPLOAD ADAPTADA PARA Pragas_Surtos ======
 class Upload {
 
@@ -130,6 +149,18 @@ class Upload {
             $this->Data_Aparicao     = isset($_POST['data_aparicao']) ? $_POST['data_aparicao'] : '';
             $this->Observacoes       = isset($_POST['observacoes']) ? $_POST['observacoes'] : '';
             $this->ID_Usuario        = $this->usuarioLogado; // NOVO: define o usuário
+            
+            // Novos campos para melhorar o relatório
+            $media_pragas_planta = isset($_POST['media_pragas_planta']) && $_POST['media_pragas_planta'] !== '' ? floatval($_POST['media_pragas_planta']) : null;
+            $severidade = isset($_POST['severidade']) && $_POST['severidade'] !== '' ? trim($_POST['severidade']) : null;
+            
+            // Verificar e criar colunas adicionais se não existirem
+            try {
+                $this->con->conexao()->exec("ALTER TABLE Pragas_Surtos ADD COLUMN media_pragas_planta DECIMAL(10,2) DEFAULT NULL");
+            } catch (PDOException $e) {}
+            try {
+                $this->con->conexao()->exec("ALTER TABLE Pragas_Surtos ADD COLUMN severidade VARCHAR(50) DEFAULT NULL");
+            } catch (PDOException $e) {}
 
             $arquivo   = isset($_FILES['imagem']) ? $_FILES['imagem'] : null;
 
@@ -178,14 +209,16 @@ class Upload {
 
                         $this->Imagem_Not_Null = $nome_imagem;
 
-                        // QUERY CORRIGIDA COM ID_USUARIO
+                        // QUERY CORRIGIDA COM ID_USUARIO E NOVOS CAMPOS
                         $cst = $this->con->conexao()->prepare("
                             INSERT INTO Pragas_Surtos (
                                 Nome, Planta_Hospedeira, Descricao, Imagem_Not_Null, ID_Praga, 
-                                Localidade, Data_Aparicao, Observacoes, ID_Usuario
+                                Localidade, Data_Aparicao, Observacoes, ID_Usuario,
+                                media_pragas_planta, severidade
                             ) VALUES (
                                 :Nome, :Planta_Hospedeira, :Descricao, :Imagem_Not_Null, 
-                                :ID_Praga, :Localidade, :Data_Aparicao, :Observacoes, :ID_Usuario
+                                :ID_Praga, :Localidade, :Data_Aparicao, :Observacoes, :ID_Usuario,
+                                :media_pragas_planta, :severidade
                             )
                         ");
 
@@ -205,11 +238,88 @@ class Upload {
                         $cst->bindParam(':Data_Aparicao',     $this->Data_Aparicao, PDO::PARAM_STR);
                         $cst->bindParam(':Observacoes',       $observacoes_tratadas, PDO::PARAM_STR);
                         $cst->bindParam(':ID_Usuario',        $this->ID_Usuario, PDO::PARAM_INT); // NOVO
+                        $cst->bindParam(':media_pragas_planta', $media_pragas_planta, $media_pragas_planta !== null ? PDO::PARAM_STR : PDO::PARAM_NULL);
+                        $cst->bindParam(':severidade', $severidade, $severidade !== null ? PDO::PARAM_STR : PDO::PARAM_NULL);
 
                         if ($cst->execute()) {
+                            // Obter o ID da praga recém-cadastrada
+                            $pragaID = $this->con->conexao()->lastInsertId();
+                            
+                            // Criar alertas para usuários da mesma região
+                            try {
+                                // Criar tabela de alertas se não existir
+                                $this->con->conexao()->exec("
+                                    CREATE TABLE IF NOT EXISTS alertas_pragas (
+                                        ID INT AUTO_INCREMENT PRIMARY KEY,
+                                        ID_Praga INT NOT NULL,
+                                        ID_Usuario_Destino INT NOT NULL,
+                                        ID_Usuario_Origem INT NOT NULL,
+                                        Localidade VARCHAR(255),
+                                        Nome_Praga VARCHAR(255),
+                                        Data_Criacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                        Lido TINYINT(1) DEFAULT 0,
+                                        Data_Leitura DATETIME NULL,
+                                        FOREIGN KEY (ID_Praga) REFERENCES Pragas_Surtos(ID) ON DELETE CASCADE,
+                                        INDEX idx_usuario_lido (ID_Usuario_Destino, Lido),
+                                        INDEX idx_data_criacao (Data_Criacao)
+                                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                                ");
+                            } catch (PDOException $e) {
+                                // Tabela pode já existir, ignorar erro
+                            }
+                            
+                            // Buscar usuários da mesma região (exceto o próprio usuário)
+                            if (!empty($localidade_tratada)) {
+                                $stmtUsuarios = $this->con->conexao()->prepare("
+                                    SELECT DISTINCT u.id 
+                                    FROM usuarios u
+                                    WHERE (u.localizacao = :localidade 
+                                           OR u.localizacao LIKE :localidadeLike)
+                                    AND u.id != :usuarioID
+                                    AND u.id IS NOT NULL
+                                ");
+                                $localidadeLike = '%' . $localidade_tratada . '%';
+                                $stmtUsuarios->bindParam(':localidade', $localidade_tratada, PDO::PARAM_STR);
+                                $stmtUsuarios->bindParam(':localidadeLike', $localidadeLike, PDO::PARAM_STR);
+                                $stmtUsuarios->bindParam(':usuarioID', $this->ID_Usuario, PDO::PARAM_INT);
+                                $stmtUsuarios->execute();
+                                $usuariosRegiao = $stmtUsuarios->fetchAll(PDO::FETCH_COLUMN);
+                                
+                                // Criar alertas para cada usuário da região
+                                if (!empty($usuariosRegiao)) {
+                                    $stmtAlerta = $this->con->conexao()->prepare("
+                                        INSERT INTO alertas_pragas 
+                                        (ID_Praga, ID_Usuario_Destino, ID_Usuario_Origem, Localidade, Nome_Praga)
+                                        VALUES (:ID_Praga, :ID_Usuario_Destino, :ID_Usuario_Origem, :Localidade, :Nome_Praga)
+                                    ");
+                                    
+                                    foreach ($usuariosRegiao as $usuarioDestinoID) {
+                                        $stmtAlerta->bindParam(':ID_Praga', $pragaID, PDO::PARAM_INT);
+                                        $stmtAlerta->bindParam(':ID_Usuario_Destino', $usuarioDestinoID, PDO::PARAM_INT);
+                                        $stmtAlerta->bindParam(':ID_Usuario_Origem', $this->ID_Usuario, PDO::PARAM_INT);
+                                        $stmtAlerta->bindParam(':Localidade', $localidade_tratada, PDO::PARAM_STR);
+                                        $stmtAlerta->bindParam(':Nome_Praga', $nome_tratado, PDO::PARAM_STR);
+                                        $stmtAlerta->execute();
+                                    }
+                                }
+                            }
+                            
+                            // Verificar se é admin para redirecionar corretamente
+                            $dashboardUrl = "../dashboard/dashboard.php";
+                            try {
+                                $stmtCheckAdmin = $this->con->conexao()->prepare("SELECT is_admin FROM usuarios WHERE id = :id");
+                                $stmtCheckAdmin->bindParam(':id', $this->ID_Usuario, PDO::PARAM_INT);
+                                $stmtCheckAdmin->execute();
+                                $adminResult = $stmtCheckAdmin->fetch(PDO::FETCH_ASSOC);
+                                if ($adminResult && isset($adminResult['is_admin']) && $adminResult['is_admin'] == 1) {
+                                    $dashboardUrl = "../dashboard/dashboardadm.php";
+                                }
+                            } catch (PDOException $e) {
+                                // Se der erro, usa o dashboard padrão
+                            }
                             echo '<script type="text/javascript">
                                 alert("Praga cadastrada com sucesso!");
-                                window.location.href = "../dashboard/dashboard.php";
+                                window.location.href = "' . $dashboardUrl . '";
                             </script>';
                             exit;
                         } else {
@@ -349,6 +459,45 @@ $lista = $upload->querySelect();
             </label>
         </div>
 
+        <!-- Informações Adicionais para o Relatório -->
+        <div class="alert alert-info mt-3 mb-3" style="margin: 20px 0;">
+            <strong><i class="bi bi-info-circle"></i> Informações Adicionais para o Relatório:</strong>
+            <small>Preencha estes campos para gerar um relatório mais completo e preciso.</small>
+        </div>
+
+        <div class="row" style="margin: 0;">
+            <div class="col-md-6" style="padding: 0 10px;">
+                <div class="mb-3">
+                    <label for="media_pragas_planta" class="form-label">
+                        Média de Pragas por Planta:
+                        <small class="text-muted">(ex: 5.5)</small>
+                    </label>
+                    <input type="number" 
+                           class="form-control" 
+                           id="media_pragas_planta" 
+                           name="media_pragas_planta" 
+                           step="0.1" 
+                           min="0"
+                           placeholder="Ex: 5.5">
+                    <small class="text-muted">Número médio de pragas encontradas por planta</small>
+                </div>
+            </div>
+            <div class="col-md-6" style="padding: 0 10px;">
+                <div class="mb-3">
+                    <label for="severidade" class="form-label">Severidade:</label>
+                    <select class="form-select" id="severidade" name="severidade">
+                        <option value="">Selecione...</option>
+                        <option value="Baixa">Baixa</option>
+                        <option value="Média">Média</option>
+                        <option value="Alta">Alta</option>
+                        <option value="Muito Alta">Muito Alta</option>
+                    </select>
+                    <small class="text-muted">Nível de severidade do ataque</small>
+                </div>
+            </div>
+        </div>
+
+
         <div class="arqimg">
             <label>Imagem (até 1920x1080, JPG ou PNG, máx. 5MB)*:
                 <input type="file" name="imagem" accept="image/jpeg,image/png,image/jpg" required>
@@ -391,10 +540,14 @@ $lista = $upload->querySelect();
                             <td><?php echo htmlspecialchars($praga['Localidade']); ?></td>
                             <td><?php echo date('d/m/Y', strtotime($praga['Data_Aparicao'])); ?></td>
                             <td>
+                                <a href="atualizar_praga.php?id=<?php echo $praga['ID']; ?>" 
+                                   class="btn btn-sm btn-primary">
+                                    <i class="bi bi-pencil-square"></i> Atualizar
+                                </a>
                                 <a href="?delete=<?php echo $praga['ID']; ?>" 
                                    class="btn btn-sm btn-danger"
                                    onclick="return confirm('Tem certeza que deseja excluir?');">
-                                    Excluir
+                                    <i class="bi bi-trash"></i> Excluir
                                 </a>
                             </td>
                         </tr>
@@ -414,36 +567,101 @@ $lista = $upload->querySelect();
             </div>
             <nav class="menu-lateral">
                 <ul>
-                    <li class="item-menu">
-                        <a href="../dashboard/dashboard.php">
-                            <span class="icon"><i class="fa-solid fa-home"></i></span>
-                            <span class="txt-link">Home</span>
-                        </a>
-                    </li>
-                    <li class="item-menu">
-                        <a href="../dashboard/dashboardadm.php">
-                            <span class="icon"><i class="bi bi-columns-gap"></i></span>
-                            <span class="txt-link">Dashboard</span>
-                        </a>
-                    </li>
-                    <li class="item-menu ativo">
-                        <a href="../cadastro/cadpraga.php">
-                            <span class="icon"><i class="bi bi-calendar-range"></i></span>
-                            <span class="txt-link">Agenda</span>
-                        </a>
-                    </li>
-                    <li class="item-menu">
-                        <a href="../inicial/inicial.html">
-                            <span class="icon"><i class="bi bi-gear"></i></span>
-                            <span class="txt-link">Configurações</span>
-                        </a>
-                    </li>
-                    <li class="item-menu">
-                        <a href="../dashboard/perfil.php">
-                            <span class="icon"><i class="bi bi-person-lines-fill"></i></span>
-                            <span class="txt-link">Conta</span>
-                        </a>
-                    </li>
+                    <?php if ($isAdmin): ?>
+                        <!-- Menu para Administradores (mesmo do dashboardadm.php) -->
+                        <li class="item-menu">
+                            <a href="../dashboard/dashboardadm.php">
+                                <span class="icon"><i class="bi bi-columns-gap"></i></span>
+                                <span class="txt-link">Home</span>
+                            </a>
+                        </li>
+                        <li class="item-menu ativo">
+                            <a href="../cadastro/cadpraga.php">
+                                <span class="icon"><i class="bi bi-calendar-range"></i></span>
+                                <span class="txt-link">Cadastrar Pragas</span>
+                            </a>
+                        </li>
+                        <li class="item-menu">
+                            <a href="../dashboard/filtros_pragas.php">
+                                <span class="icon"><i class="bi bi-funnel"></i></span>
+                                <span class="txt-link">Filtros de Pragas</span>
+                            </a>
+                        </li>
+                        <li class="item-menu">
+                            <a href="../dashboard/filtros_usuarios.php">
+                                <span class="icon"><i class="bi bi-people"></i></span>
+                                <span class="txt-link">Filtros de Usuários</span>
+                            </a>
+                        </li>
+                        <li class="item-menu">
+                            <a href="../dashboard/feedback.php">
+                                <span class="icon"><i class="bi bi-chat-dots"></i></span>
+                                <span class="txt-link">Feedback</span>
+                            </a>
+                        </li>
+                        <li class="item-menu">
+                            <a href="../inicial/inicial.html">
+                                <span class="icon"><i class="bi bi-gear"></i></span>
+                                <span class="txt-link">Configurações</span>
+                            </a>
+                        </li>
+                        <li class="item-menu">
+                            <a href="../dashboard/perfil.php">
+                                <span class="icon"><i class="bi bi-person-lines-fill"></i></span>
+                                <span class="txt-link">Conta</span>
+                            </a>
+                        </li>
+                        <li class="item-menu">
+                            <a href="../login/logout.php">
+                                <span class="icon"><i class="bi bi-box-arrow-right"></i></span>
+                                <span class="txt-link">Sair</span>
+                            </a>
+                        </li>
+                    <?php else: ?>
+                        <!-- Menu para Usuários Normais (mesmo do dashboard.php) -->
+                        <li class="item-menu">
+                            <a href="../dashboard/dashboard.php">
+                                <span class="icon"><i class="fa-solid fa-home"></i></span>
+                                <span class="txt-link">Home</span>
+                            </a>
+                        </li>
+                        <li class="item-menu ativo">
+                            <a href="../cadastro/cadpraga.php">
+                                <span class="icon"><i class="bi bi-columns-gap"></i></span>
+                                <span class="txt-link">Cadastrar Pragas</span>
+                            </a>
+                        </li>
+                        <li class="item-menu">
+                            <a href="../dashboard/filtros_pragas.php">
+                                <span class="icon"><i class="bi bi-funnel"></i></span>
+                                <span class="txt-link">Filtros de Pragas</span>
+                            </a>
+                        </li>
+                        <li class="item-menu">
+                            <a href="../dashboard/feedback.php">
+                                <span class="icon"><i class="bi bi-chat-dots"></i></span>
+                                <span class="txt-link">Feedback</span>
+                            </a>
+                        </li>
+                        <li class="item-menu">
+                            <a href="../inicial/inicial.html">
+                                <span class="icon"><i class="bi bi-gear"></i></span>
+                                <span class="txt-link">Configurações</span>
+                            </a>
+                        </li>
+                        <li class="item-menu">
+                            <a href="../dashboard/perfil.php">
+                                <span class="icon"><i class="bi bi-person-lines-fill"></i></span>
+                                <span class="txt-link">Conta</span>
+                            </a>
+                        </li>
+                        <li class="item-menu">
+                            <a href="../login/logout.php">
+                                <span class="icon"><i class="bi bi-box-arrow-right"></i></span>
+                                <span class="txt-link">Sair</span>
+                            </a>
+                        </li>
+                    <?php endif; ?>
                 </ul>
             </nav> 
         </aside>

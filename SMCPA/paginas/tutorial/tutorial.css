@@ -1,0 +1,299 @@
+/* Reset e configurações globais */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    padding: 0;
+    overflow-x: hidden;
+}
+
+/* Container do tutorial em tela cheia */
+.tutorial-container {
+    width: 100%;
+    min-height: 100vh;
+    background: white;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.tutorial-header {
+    background: linear-gradient(135deg, #1a3d24 0%, #28a745 100%);
+    color: white;
+    padding: 40px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.tutorial-header h1 {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+    font-weight: 700;
+}
+
+.tutorial-header p {
+    font-size: 1.2rem;
+    opacity: 0.9;
+}
+
+.tutorial-nav {
+    background: #f8f9fa;
+    padding: 20px 40px;
+    border-bottom: 2px solid #e9ecef;
+    flex-shrink: 0;
+}
+
+.nav-buttons {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.nav-btn {
+    padding: 10px 20px;
+    background: white;
+    border: 2px solid #28a745;
+    color: #28a745;
+    border-radius: 25px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s;
+}
+
+.nav-btn:hover {
+    background: #28a745;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(40,167,69,0.3);
+}
+
+/* Conteúdo com scroll */
+.tutorial-content {
+    padding: 40px;
+    overflow-y: auto;
+    flex: 1;
+    height: calc(100vh - 280px);
+}
+
+.section {
+    margin-bottom: 50px;
+    padding: 30px;
+    background: #f8f9fa;
+    border-radius: 15px;
+    border-left: 5px solid #28a745;
+}
+
+.section h2 {
+    color: #1a3d24;
+    font-size: 2rem;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.section h2 i {
+    color: #28a745;
+    font-size: 1.8rem;
+}
+
+.section h3 {
+    color: #28a745;
+    font-size: 1.5rem;
+    margin-top: 25px;
+    margin-bottom: 15px;
+}
+
+.section p {
+    color: #555;
+    line-height: 1.8;
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+}
+
+.feature-card {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    margin: 15px 0;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    transition: transform 0.3s;
+}
+
+.feature-card:hover {
+    transform: translateX(5px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.15);
+}
+
+.feature-card h4 {
+    color: #1a3d24;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.feature-card h4 i {
+    color: #28a745;
+}
+
+.feature-card ul {
+    margin-left: 20px;
+    color: #666;
+}
+
+.feature-card ul li {
+    margin: 8px 0;
+    line-height: 1.6;
+}
+
+.badge-admin {
+    display: inline-block;
+    background: #dc3545;
+    color: white;
+    padding: 5px 12px;
+    border-radius: 15px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-left: 10px;
+}
+
+.badge-user {
+    display: inline-block;
+    background: #007bff;
+    color: white;
+    padding: 5px 12px;
+    border-radius: 15px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-left: 10px;
+}
+
+.back-button {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 1000;
+    padding: 12px 24px;
+    background: white;
+    border: 2px solid #28a745;
+    color: #28a745;
+    border-radius: 25px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.back-button:hover {
+    background: #28a745;
+    color: white;
+    transform: translateX(-5px);
+}
+
+.step-list {
+    counter-reset: step-counter;
+    list-style: none;
+}
+
+.step-list li {
+    counter-increment: step-counter;
+    margin: 20px 0;
+    padding-left: 50px;
+    position: relative;
+    color: #555;
+    line-height: 1.8;
+}
+
+.step-list li::before {
+    content: counter(step-counter);
+    position: absolute;
+    left: 0;
+    top: 0;
+    background: #28a745;
+    color: white;
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+
+.highlight-box {
+    background: #fff3cd;
+    border-left: 4px solid #ffc107;
+    padding: 15px 20px;
+    border-radius: 5px;
+    margin: 20px 0;
+}
+
+.highlight-box strong {
+    color: #856404;
+}
+
+/* Scrollbar personalizada */
+.tutorial-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.tutorial-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+.tutorial-content::-webkit-scrollbar-thumb {
+    background: #28a745;
+    border-radius: 4px;
+}
+
+.tutorial-content::-webkit-scrollbar-thumb:hover {
+    background: #218838;
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+    .tutorial-header {
+        padding: 20px;
+    }
+
+    .tutorial-header h1 {
+        font-size: 2rem;
+    }
+
+    .tutorial-header p {
+        font-size: 1rem;
+    }
+
+    .tutorial-nav {
+        padding: 15px 20px;
+    }
+
+    .tutorial-content {
+        padding: 20px;
+        height: calc(100vh - 220px);
+    }
+
+    .section {
+        padding: 20px;
+    }
+
+    .section h2 {
+        font-size: 1.5rem;
+    }
+
+    .back-button {
+        top: 10px;
+        left: 10px;
+        padding: 8px 16px;
+        font-size: 0.9rem;
+    }
+}
+

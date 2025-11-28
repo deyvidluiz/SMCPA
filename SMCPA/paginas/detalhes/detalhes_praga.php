@@ -37,9 +37,27 @@ include_once(BASE_URL.'/conexao/conexao.php');
 $db = new Database();
 $pdo = $db->conexao();
 
+// Verificar se é administrador
+$isAdmin = false;
+if (isset($_SESSION['is_admin'])) {
+    $isAdmin = $_SESSION['is_admin'] == 1;
+} else {
+    try {
+        $stmtAdmin = $pdo->prepare("SELECT is_admin FROM usuarios WHERE id = :id");
+        $stmtAdmin->bindParam(':id', $usuarioID, PDO::PARAM_INT);
+        $stmtAdmin->execute();
+        $userAdmin = $stmtAdmin->fetch(PDO::FETCH_ASSOC);
+        $isAdmin = ($userAdmin && isset($userAdmin['is_admin']) && $userAdmin['is_admin'] == 1);
+        $_SESSION['is_admin'] = $isAdmin ? 1 : 0;
+    } catch (PDOException $e) {
+        $isAdmin = false;
+    }
+}
+
 // Verificar se foi passado um ID de praga
 if (!isset($_GET['id']) || empty($_GET['id'])) {
-    header("Location: ../dashboard/dashboard.php");
+    $dashboardUrl = $isAdmin ? "../dashboard/dashboardadm.php" : "../dashboard/dashboard.php";
+    header("Location: " . $dashboardUrl);
     exit;
 }
 
@@ -57,7 +75,8 @@ try {
     $praga = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$praga) {
-        header("Location: ../dashboard/dashboard.php?erro=praga_nao_encontrada");
+        $dashboardUrl = $isAdmin ? "../dashboard/dashboardadm.php" : "../dashboard/dashboard.php";
+        header("Location: " . $dashboardUrl . "?erro=praga_nao_encontrada");
         exit;
     }
 } catch (PDOException $e) {
@@ -90,58 +109,13 @@ $ehMinhaPraga = (!empty($praga['ID_Usuario']) && $praga['ID_Usuario'] == $usuari
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <style>
-        body {
-            background-color: #f8f9fa;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        .detalhes-container {
-            max-width: 1200px;
-            margin: 30px auto;
-            padding: 20px;
-        }
-        .card {
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            border: none;
-            margin-bottom: 20px;
-        }
-        .card-header {
-            background-color: #007bff;
-            color: white;
-            font-weight: bold;
-        }
-        .imagem-praga {
-            max-width: 100%;
-            height: auto;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-        }
-        .info-item {
-            padding: 12px 0;
-            border-bottom: 1px solid #e9ecef;
-        }
-        .info-item:last-child {
-            border-bottom: none;
-        }
-        .info-label {
-            font-weight: bold;
-            color: #495057;
-            margin-bottom: 5px;
-        }
-        .info-value {
-            color: #212529;
-        }
-        .badge-custom {
-            font-size: 0.9rem;
-            padding: 8px 12px;
-        }
-    </style>
+    <link rel="stylesheet" href="detalhes_praga.css">
 </head>
 <body>
     <div class="detalhes-container">
         <!-- Navegação Superior -->
         <div class="d-flex justify-content-between mb-4">
-            <a href="../dashboard/dashboard.php" class="btn btn-secondary">
+            <a href="<?= $isAdmin ? '../dashboard/dashboardadm.php' : '../dashboard/dashboard.php'; ?>" class="btn btn-secondary">
                 <i class="bi bi-arrow-left"></i> Voltar ao Dashboard
             </a>
             <?php if ($ehMinhaPraga): ?>

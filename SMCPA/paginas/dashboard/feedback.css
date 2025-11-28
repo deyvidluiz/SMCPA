@@ -1,0 +1,139 @@
+.feedback-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 30px;
+}
+
+.feedback-header {
+    text-align: center;
+    margin-bottom: 40px;
+    padding-bottom: 20px;
+    border-bottom: 3px solid #28a745;
+}
+
+.feedback-header h1 {
+    color: #1a3d24;
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+}
+
+.feedback-header h1 i {
+    color: #28a745;
+}
+
+.feedback-header p {
+    color: #666;
+    font-size: 1.1rem;
+    margin: 0;
+}
+
+.feedback-card {
+    background: white;
+    border-radius: 15px;
+    padding: 30px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+}
+
+.feedback-card .form-label {
+    font-weight: 600;
+    color: #1a3d24;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.feedback-card .form-label i {
+    color: #28a745;
+}
+
+.feedback-card .form-control,
+.feedback-card .form-select {
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    padding: 12px 15px;
+    transition: all 0.3s;
+}
+
+.feedback-card .form-control:focus,
+.feedback-card .form-select:focus {
+    border-color: #28a745;
+    box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+}
+
+.feedback-card textarea {
+    resize: vertical;
+    min-height: 150px;
+}
+
+.char-count {
+    text-align: right;
+    margin-top: 5px;
+    font-size: 0.85rem;
+    color: #6c757d;
+}
+
+.feedback-info {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    margin-top: 30px;
+}
+
+.info-card {
+    background: white;
+    border-radius: 10px;
+    padding: 25px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+    text-align: center;
+    transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.info-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.15);
+}
+
+.info-card i {
+    font-size: 2.5rem;
+    color: #28a745;
+    margin-bottom: 15px;
+}
+
+.info-card h5 {
+    color: #1a3d24;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+.info-card p {
+    color: #666;
+    font-size: 0.9rem;
+    margin: 0;
+    line-height: 1.6;
+}
+
+@media (max-width: 768px) {
+    .feedback-container {
+        padding: 15px;
+    }
+
+    .feedback-header h1 {
+        font-size: 2rem;
+        flex-direction: column;
+    }
+
+    .feedback-card {
+        padding: 20px;
+    }
+
+    .feedback-info {
+        grid-template-columns: 1fr;
+    }
+}
+

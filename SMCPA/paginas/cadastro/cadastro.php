@@ -14,6 +14,7 @@ function normalizaString($str) {
 $usuario = '';
 $email = '';
 $senha = '';
+$localizacao = '';
 $mensagemErro = '';
 $cadastroSucesso = false;
 
@@ -25,6 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $usuario = $_POST['usuario'];
         $senha   = $_POST['senha'];
         $email   = $_POST['email'];
+        $localizacao = trim($_POST['localizacao'] ?? '');
 
         // Cria uma instância da classe Database e faz a conexão
         $db   = new Database();
@@ -116,13 +118,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Só prossegue com o cadastro se não houver erro na imagem
         if (!$erroImagem) {
             try {
+                // Verificar se a coluna localizacao existe, se não, criar
+                try {
+                    $stmtCheck = $conn->query("SHOW COLUMNS FROM usuarios LIKE 'localizacao'");
+                    $colunaExiste = $stmtCheck->rowCount() > 0;
+                    
+                    if (!$colunaExiste) {
+                        $conn->exec("ALTER TABLE usuarios ADD COLUMN localizacao VARCHAR(255) DEFAULT NULL");
+                    }
+                } catch (PDOException $e) {
+                    // Ignorar erro - coluna provavelmente já existe
+                }
+                
                 // Criptografa a senha com password_hash()
                 $senha_hash = password_hash($senha, PASSWORD_DEFAULT);  // Gerando o hash da senha
 
-                // INSERT com a coluna Imagem
+                // INSERT com a coluna Imagem e Localizacao
                 $stmt = $conn->prepare("
-                    INSERT INTO usuarios (usuario, senha, Email, Imagem) 
-                    VALUES (:usuario, :senha, :Email, :Imagem)
+                    INSERT INTO usuarios (usuario, senha, Email, Imagem, localizacao) 
+                    VALUES (:usuario, :senha, :Email, :Imagem, :localizacao)
                 ");
 
                 // Vincula os parâmetros
@@ -130,6 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $stmt->bindParam(':senha',   $senha_hash);  // Usando a senha hash
                 $stmt->bindParam(':Email',   $email);
                 $stmt->bindParam(':Imagem',  $nomeImagem);  // pode ser null
+                $stmt->bindParam(':localizacao', $localizacao);  // localização do usuário
 
                 // Executa a consulta
                 $stmt->execute();
@@ -139,6 +154,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $usuario = '';
                 $email = '';
                 $senha = '';
+                $localizacao = '';
                 $mensagemErro = 'Usuário cadastrado com sucesso!';
             } catch (PDOException $e) {
                 // Em caso de erro, mantém os dados preenchidos
@@ -163,7 +179,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <body>
   <div class="container">
     <img src="/SMCPA/imgs/logotrbf.png" alt="Logo SMCPA" class="logo">
-    <h1>Cadastrar-se</h1>
+    <h1>Cadastrar-se</h1>                                                                                                                                                                                                                                                                                                                                                                                                      
     
     <!-- Exibe mensagem de erro ou sucesso -->
     <?php if (!empty($mensagemErro)): ?>
@@ -183,6 +199,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
       <label for="senha">Senha</label>
       <input type="password" id="senha" name="senha" placeholder="Digite sua senha" value="<?= htmlspecialchars($senha) ?>" required>
+
+      <label for="localizacao">Localização/Região <span style="color: #dc3545;">*</span></label>
+      <input type="text" id="localizacao" name="localizacao" placeholder="Ex: Zona Rural de São Paulo, Fazenda ABC, etc." value="<?= htmlspecialchars($localizacao) ?>" required>
+      <small style="display: block; margin-top: 5px; color: #666;">Esta informação será usada para mostrar surtos próximos na sua região</small>
       
       <!-- Campo opcional de imagem -->
       <label for="imagem">Foto de perfil (opcional) - JPG ou PNG até 5MB</label>
@@ -190,6 +210,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
       <small style="display: block; margin-top: 5px; color: #666;">Formatos aceitos: JPG, PNG. Tamanho máximo: 5MB. Dimensões máximas: 1920x1080px</small>
 
       <button type="submit">Cadastrar</button>
+      <button type="button" onclick="window.location.href='../login/login.php'" style="margin-top: 10px; background: #6c757d; color: #fff; border: none; border-radius: 6px; cursor: pointer; width: 100%; padding: 10px; font-weight: 500;" onmouseover="this.style.background='#5a6268'" onmouseout="this.style.background='#6c757d'">Voltar</button>
     </form>
   </div>
   

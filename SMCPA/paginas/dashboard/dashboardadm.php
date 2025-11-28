@@ -31,6 +31,11 @@ if (!$estaLogado || !$usuarioID) {
     exit;
 }
 
+// Headers para prevenir cache e garantir que o botão voltar não funcione após logout
+header("Cache-Control: no-cache, no-store, must-revalidate"); // HTTP 1.1
+header("Pragma: no-cache"); // HTTP 1.0
+header("Expires: 0"); // Proxies
+
 // Incluir o arquivo com a classe Database
 require_once('../../config.php'); 
 include_once(BASE_URL.'/conexao/conexao.php');  // Certifique-se de que esse caminho está correto
@@ -41,35 +46,93 @@ $db = new Database();
 // Estabelecer a conexão com o banco de dados (PDO)
 $pdo = $db->conexao();  // Obtém a conexão PDO
 
-// ================== PESQUISA DE USUÁRIOS ==================
-if (isset($_POST['procurar'])) {
-    $pesquisa = $_POST['procurar'];
-} else {
-    $pesquisa = '';
+// Buscar imagem do perfil do usuário
+$imagemPerfil = null;
+if ($usuarioID) {
+    try {
+        $stmtImagem = $pdo->prepare("SELECT Imagem FROM usuarios WHERE id = :id");
+        $stmtImagem->bindParam(':id', $usuarioID, PDO::PARAM_INT);
+        $stmtImagem->execute();
+        $resultado = $stmtImagem->fetch(PDO::FETCH_ASSOC);
+        if ($resultado && !empty($resultado['Imagem'])) {
+            $imagemPerfil = '/uploads/usuarios/' . $resultado['Imagem'];
+        }
+    } catch (PDOException $e) {
+        $imagemPerfil = null;
+    }
+}
+// Se não houver imagem, usar imagem padrão
+if (!$imagemPerfil) {
+    $imagemPerfil = '/SMCPA/imgs/logotrbf.png';
 }
 
-// Criar a consulta SQL com parâmetro preparado para USUÁRIOS
-$sql = "SELECT id, usuario, email, senha, data_cadastro, Imagem 
-        FROM usuarios 
-        WHERE usuario LIKE :pesquisa"; 
+// ================== VERIFICAÇÃO DE ADMINISTRADOR ==================
+// Verificar se a coluna is_admin existe, se não, criar
+try {
+    // Verificar se a coluna já existe
+    $stmtCheck = $pdo->query("SHOW COLUMNS FROM usuarios LIKE 'is_admin'");
+    $colunaExiste = $stmtCheck->rowCount() > 0;
+    
+    if (!$colunaExiste) {
+        // Se não existe, criar a coluna
+        $pdo->exec("ALTER TABLE usuarios ADD COLUMN is_admin TINYINT(1) DEFAULT 0");
+    }
+} catch (PDOException $e) {
+    // Ignorar erro - coluna provavelmente já existe
+}
 
-$stmt = $pdo->prepare($sql);
-$stmt->bindValue(':pesquisa', "%$pesquisa%", PDO::PARAM_STR);
-$stmt->execute();
+// Tornar o usuário ID 7 (Deyvid) como administrador
+try {
+    $stmtAdminId7 = $pdo->prepare("UPDATE usuarios SET is_admin = 1 WHERE id = 7");
+    $stmtAdminId7->execute();
+} catch (PDOException $e) {
+    // Ignorar erro se o usuário não existir
+}
 
-// Recupera os dados dos usuários
-$dados = $stmt->fetchAll(PDO::FETCH_ASSOC);
+// Verificar se o usuário logado é administrador (apenas para exibir botão de cadastrar admin)
+// Primeiro tenta usar a sessão (mais rápido)
+$isAdmin = false;
+if (isset($_SESSION['is_admin'])) {
+    $isAdmin = $_SESSION['is_admin'] == 1;
+} else {
+    // Se não estiver na sessão, consulta o banco
+    try {
+        $stmtAdmin = $pdo->prepare("SELECT is_admin FROM usuarios WHERE id = :id");
+        $stmtAdmin->bindParam(':id', $usuarioID, PDO::PARAM_INT);
+        $stmtAdmin->execute();
+        $userAdmin = $stmtAdmin->fetch(PDO::FETCH_ASSOC);
+        $isAdmin = ($userAdmin && isset($userAdmin['is_admin']) && $userAdmin['is_admin'] == 1);
+        // Salva na sessão para próximas verificações
+        $_SESSION['is_admin'] = $isAdmin ? 1 : 0;
+    } catch (PDOException $e) {
+        // Se der erro, assume que não é admin
+        $isAdmin = false;
+    }
+}
+// Nota: Não bloqueia acesso aqui pois o sistema de login já redireciona automaticamente
+// apenas administradores para esta página
 
-// Função para excluir usuários
+// Função para excluir usuários (pode ser chamada de outras páginas)
 if (isset($_GET['delete_usuario'])) {
     $usuario_id = $_GET['delete_usuario'];
 
-    $stmtDeleteusuario = $pdo->prepare("DELETE FROM usuarios WHERE id = :id");
-    $stmtDeleteusuario->bindParam(':id', $usuario_id, PDO::PARAM_INT);
-    $stmtDeleteusuario->execute();
-  
-    header('location: dashboardadm.php');
-    exit;
+    try {
+        // Primeiro, deletar todas as pragas associadas ao usuário
+        $stmtDelPragas = $pdo->prepare("DELETE FROM Pragas_Surtos WHERE ID_Usuario = :usuarioID");
+        $stmtDelPragas->bindParam(':usuarioID', $usuario_id, PDO::PARAM_INT);
+        $stmtDelPragas->execute();
+
+        // Depois, deletar o usuário
+        $stmtDeleteusuario = $pdo->prepare("DELETE FROM usuarios WHERE id = :id");
+        $stmtDeleteusuario->bindParam(':id', $usuario_id, PDO::PARAM_INT);
+        $stmtDeleteusuario->execute();
+      
+        header('location: dashboardadm.php?sucesso=usuario_excluido');
+        exit;
+    } catch (PDOException $e) {
+        header('location: dashboardadm.php?erro=' . urlencode('Erro ao excluir usuário: ' . $e->getMessage()));
+        exit;
+    }
 }
 
 // Função para redefinir senha do usuário (converter para texto plano)
@@ -93,37 +156,343 @@ if (isset($_POST['redefinir_senha'])) {
     }
 }
 
-// ================== CONSULTA DAS PRAGAS ==================
-$sqlPragas = "SELECT 
-                ID,
-                Nome,
-                Planta_Hospedeira,
-                Descricao,
-                Imagem_Not_Null,
-                ID_Praga,
-                Localidade,
-                Data_Aparicao,
-                Observacoes
-              FROM Pragas_Surtos
-              ORDER BY ID DESC";
+// ================== CADASTRO DE ADMINISTRADOR ==================
+if (isset($_POST['cadastrar_admin']) && $isAdmin) {
+    $usuario_admin = trim($_POST['usuario_admin'] ?? '');
+    $email_admin = trim($_POST['email_admin'] ?? '');
+    $senha_admin = $_POST['senha_admin'] ?? '';
+    
+    if (!empty($usuario_admin) && !empty($email_admin) && !empty($senha_admin)) {
+        try {
+            // Verificar se o email já existe
+            $stmtCheck = $pdo->prepare("SELECT id FROM usuarios WHERE email = :email");
+            $stmtCheck->bindParam(':email', $email_admin);
+            $stmtCheck->execute();
+            
+            if ($stmtCheck->fetch()) {
+                $erro_cadastro_admin = "Este email já está cadastrado!";
+            } else {
+                // Criptografa a senha
+                $senha_hash = password_hash($senha_admin, PASSWORD_DEFAULT);
+                
+                // Cadastrar como administrador
+                $stmtCadastro = $pdo->prepare("
+                    INSERT INTO usuarios (usuario, email, senha, is_admin) 
+                    VALUES (:usuario, :email, :senha, 1)
+                ");
+                $stmtCadastro->bindParam(':usuario', $usuario_admin);
+                $stmtCadastro->bindParam(':email', $email_admin);
+                $stmtCadastro->bindParam(':senha', $senha_hash);
+                $stmtCadastro->execute();
+                
+                $sucesso_cadastro_admin = "Administrador cadastrado com sucesso!";
+            }
+        } catch (PDOException $e) {
+            $erro_cadastro_admin = "Erro ao cadastrar administrador: " . $e->getMessage();
+        }
+    } else {
+        $erro_cadastro_admin = "Todos os campos são obrigatórios!";
+    }
+}
 
-$stmtPragas = $pdo->prepare($sqlPragas);
-$stmtPragas->execute();
+// ================== DASHBOARD DE PRAGAS (FUNCIONALIDADES DO USUÁRIO) ==================
+// Buscar todas as pragas cadastradas (admins veem todas para gráficos e análises)
+$todasPragas = [];
+try {
+    $stmtPragas = $pdo->prepare("SELECT ID, Nome, Planta_Hospedeira, Localidade, Data_Aparicao, ID_Usuario 
+                                 FROM Pragas_Surtos 
+                                 ORDER BY Data_Aparicao DESC");
+    $stmtPragas->execute();
+    $todasPragas = $stmtPragas->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $todasPragas = [];
+}
 
-// Recupera os dados das pragas em $lista
-$lista = $stmtPragas->fetchAll(PDO::FETCH_ASSOC);
+// Buscar apenas as pragas cadastradas pelo admin logado (para gerar relatórios)
+$pragasAdmin = [];
+try {
+    $stmtPragasAdmin = $pdo->prepare("SELECT ID, Nome, Planta_Hospedeira, Localidade, Data_Aparicao, ID_Usuario 
+                                      FROM Pragas_Surtos 
+                                      WHERE ID_Usuario = :usuarioID 
+                                      ORDER BY Data_Aparicao DESC");
+    $stmtPragasAdmin->bindParam(':usuarioID', $usuarioID, PDO::PARAM_INT);
+    $stmtPragasAdmin->execute();
+    $pragasAdmin = $stmtPragasAdmin->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $pragasAdmin = [];
+}
+
+// Buscar localidade do usuário (pega da primeira praga ou usa padrão)
+$localidadeUsuario = 'Região não especificada';
+if (!empty($todasPragas)) {
+    $localidadeUsuario = $todasPragas[0]['Localidade'];
+}
+
+// Função para extrair palavras-chave do nome da praga (para busca de pragas similares)
+function extrairPalavrasChave($nome) {
+    $nome = strtolower(trim($nome));
+    $palavrasComuns = ['de', 'da', 'do', 'das', 'dos', 'a', 'o', 'e', 'em', 'na', 'no'];
+    $palavras = explode(' ', $nome);
+    $palavrasChave = [];
+    foreach ($palavras as $palavra) {
+        $palavra = trim($palavra);
+        if (strlen($palavra) > 2 && !in_array($palavra, $palavrasComuns)) {
+            $palavrasChave[] = $palavra;
+        }
+    }
+    return $palavrasChave;
+}
+
+// Praga selecionada (se houver)
+$pragaSelecionadaID = $_GET['praga_id'] ?? ($todasPragas[0]['ID'] ?? null);
+$pragaSelecionada = null;
+
+if ($pragaSelecionadaID) {
+    foreach ($todasPragas as $praga) {
+        if ($praga['ID'] == $pragaSelecionadaID) {
+            $pragaSelecionada = $praga;
+            break;
+        }
+    }
+}
+
+// Buscar surtos dos últimos 30 dias da praga selecionada (de todas as pragas para admins, incluindo similares)
+$surtos30Dias = [];
+$dadosGrafico = [];
+if ($pragaSelecionada) {
+    try {
+        $dataLimite = date('Y-m-d', strtotime('-30 days'));
+        
+        // Extrair palavras-chave do nome da praga para buscar pragas similares
+        $palavrasChave = extrairPalavrasChave($pragaSelecionada['Nome']);
+        $nomePragaExato = trim($pragaSelecionada['Nome']);
+        $nomePragaLike = '%' . $nomePragaExato . '%';
+        
+        // Preparar condições de busca de pragas similares
+        $condicoesPraga = [];
+        $params = [];
+        
+        $condicoesPraga[] = "LOWER(TRIM(Nome)) = LOWER(TRIM(:nomePraga))";
+        $params[':nomePraga'] = $nomePragaExato;
+        
+        $condicoesPraga[] = "LOWER(Nome) LIKE LOWER(:nomePragaLike)";
+        $params[':nomePragaLike'] = $nomePragaLike;
+        
+        // Busca por palavras-chave (pragas similares)
+        foreach ($palavrasChave as $index => $palavra) {
+            $paramName = ':palavraChave' . $index;
+            $condicoesPraga[] = "LOWER(Nome) LIKE " . $paramName;
+            $params[$paramName] = '%' . $palavra . '%';
+        }
+        
+        $sqlCondicaoPraga = "(" . implode(" OR ", $condicoesPraga) . ")";
+        
+        // Para admins, buscar surtos de TODAS as regiões (sem filtro de localidade)
+        $sql = "SELECT DATE(Data_Aparicao) as data_surto, COUNT(*) as total 
+                FROM Pragas_Surtos 
+                WHERE " . $sqlCondicaoPraga . "
+                AND Data_Aparicao >= :dataLimite
+                GROUP BY DATE(Data_Aparicao)
+                ORDER BY Data_Aparicao ASC";
+        
+        $stmtSurtos = $pdo->prepare($sql);
+        
+        foreach ($params as $paramName => $valor) {
+            $stmtSurtos->bindValue($paramName, $valor, PDO::PARAM_STR);
+        }
+        
+        $stmtSurtos->bindValue(':dataLimite', $dataLimite, PDO::PARAM_STR);
+        $stmtSurtos->execute();
+        $surtos30Dias = $stmtSurtos->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Preparar dados para o gráfico (preencher dias sem surtos com 0)
+        $dataInicio = new DateTime($dataLimite);
+        $dataFim = new DateTime();
+        $intervalo = new DateInterval('P1D');
+        $periodo = new DatePeriod($dataInicio, $intervalo, $dataFim);
+        
+        $surtosPorData = [];
+        foreach ($surtos30Dias as $surto) {
+            $surtosPorData[$surto['data_surto']] = (int)$surto['total'];
+        }
+        
+        foreach ($periodo as $data) {
+            $dataStr = $data->format('Y-m-d');
+            $dadosGrafico[] = [
+                'Data_Aparicao' => $dataStr,
+                'total' => isset($surtosPorData[$dataStr]) ? $surtosPorData[$dataStr] : 0
+            ];
+        }
+    } catch (PDOException $e) {
+        $surtos30Dias = [];
+        $dadosGrafico = [];
+    }
+}
+
+// Função para gerar recomendações baseadas na praga
+function gerarRecomendacoes($nomePraga) {
+    $recomendacoes = [];
+    $nomeLower = strtolower($nomePraga);
+    
+    // Recomendações genéricas
+    $recomendacoes[] = "Monitore a área regularmente para detectar novos focos da praga.";
+    $recomendacoes[] = "Mantenha o solo bem drenado e evite excesso de umidade.";
+    $recomendacoes[] = "Realize rotação de culturas para evitar acúmulo de pragas.";
+    
+    // Recomendações específicas por tipo de praga
+    if (strpos($nomeLower, 'lagarta') !== false || strpos($nomeLower, 'caterpillar') !== false) {
+        $recomendacoes[] = "Use inseticidas biológicos à base de Bacillus thuringiensis.";
+        $recomendacoes[] = "Instale armadilhas com feromônios para monitoramento.";
+        $recomendacoes[] = "Remova manualmente as lagartas quando possível.";
+    } elseif (strpos($nomeLower, 'pulgão') !== false || strpos($nomeLower, 'aphid') !== false) {
+        $recomendacoes[] = "Aplique sabão inseticida ou óleo de neem.";
+        $recomendacoes[] = "Introduza predadores naturais como joaninhas.";
+        $recomendacoes[] = "Evite excesso de nitrogênio que favorece pulgões.";
+    } elseif (strpos($nomeLower, 'ácaro') !== false || strpos($nomeLower, 'mite') !== false) {
+        $recomendacoes[] = "Aumente a umidade relativa do ar com irrigação.";
+        $recomendacoes[] = "Use acaricidas específicos para ácaros.";
+        $recomendacoes[] = "Remova folhas muito infestadas.";
+    } elseif (strpos($nomeLower, 'fungo') !== false || strpos($nomeLower, 'fungus') !== false) {
+        $recomendacoes[] = "Aplique fungicidas preventivos antes do período chuvoso.";
+        $recomendacoes[] = "Melhore a circulação de ar entre as plantas.";
+        $recomendacoes[] = "Evite irrigação por aspersão nas folhas.";
+    } elseif (strpos($nomeLower, 'besouro') !== false || strpos($nomeLower, 'beetle') !== false) {
+        $recomendacoes[] = "Use armadilhas adesivas amarelas.";
+        $recomendacoes[] = "Aplique inseticidas no início da manhã ou fim da tarde.";
+        $recomendacoes[] = "Remova plantas hospedeiras alternativas.";
+    } else {
+        $recomendacoes[] = "Consulte um agrônomo para tratamento específico.";
+        $recomendacoes[] = "Use produtos registrados para o controle desta praga.";
+    }
+    
+    return $recomendacoes;
+}
+
+$recomendacoes = $pragaSelecionada ? gerarRecomendacoes($pragaSelecionada['Nome']) : [];
+
+// Verificar ação AJAX
+$acao = $_GET['acao'] ?? '';
+
+// Se for requisição AJAX, retornar apenas o conteúdo necessário
+if ($acao === 'surtos' && $pragaSelecionada) {
+    // Buscar surtos para esta praga
+    $surtos30Dias = [];
+    try {
+        $dataLimite = date('Y-m-d', strtotime('-30 days'));
+        
+        // Extrair palavras-chave do nome da praga
+        $palavrasChave = extrairPalavrasChave($pragaSelecionada['Nome']);
+        $nomePragaExato = trim($pragaSelecionada['Nome']);
+        $nomePragaLike = '%' . $nomePragaExato . '%';
+        
+        // Preparar condições de busca de pragas similares
+        $condicoesPraga = [];
+        $params = [];
+        
+        $condicoesPraga[] = "LOWER(TRIM(Nome)) = LOWER(TRIM(:nomePraga))";
+        $params[':nomePraga'] = $nomePragaExato;
+        
+        $condicoesPraga[] = "LOWER(Nome) LIKE LOWER(:nomePragaLike)";
+        $params[':nomePragaLike'] = $nomePragaLike;
+        
+        foreach ($palavrasChave as $index => $palavra) {
+            $paramName = ':palavraChave' . $index;
+            $condicoesPraga[] = "LOWER(Nome) LIKE " . $paramName;
+            $params[$paramName] = '%' . $palavra . '%';
+        }
+        
+        $sqlCondicaoPraga = "(" . implode(" OR ", $condicoesPraga) . ")";
+        
+        $sql = "SELECT DATE(Data_Aparicao) as data_surto, COUNT(*) as total 
+                FROM Pragas_Surtos 
+                WHERE " . $sqlCondicaoPraga . "
+                AND Data_Aparicao >= :dataLimite
+                GROUP BY DATE(Data_Aparicao)
+                ORDER BY Data_Aparicao ASC";
+        
+        $stmtSurtos = $pdo->prepare($sql);
+        
+        foreach ($params as $paramName => $valor) {
+            $stmtSurtos->bindValue($paramName, $valor, PDO::PARAM_STR);
+        }
+        
+        $stmtSurtos->bindValue(':dataLimite', $dataLimite, PDO::PARAM_STR);
+        $stmtSurtos->execute();
+        $surtos30Dias = $stmtSurtos->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        $surtos30Dias = [];
+    }
+    
+    if (!empty($surtos30Dias)): ?>
+        <div class="info-box">
+          <p class="mb-1"><strong>Praga:</strong> <?= htmlspecialchars($pragaSelecionada['Nome']); ?></p>
+          <p class="mb-2"><strong>Região:</strong> Todas as regiões</p>
+          <p class="mb-0"><small class="text-muted"><i class="bi bi-info-circle"></i> Incluindo surtos de pragas similares</small></p>
+        </div>
+        <div class="list-group" style="max-height: 180px; overflow-y: auto;">
+          <?php foreach ($surtos30Dias as $surtos): ?>
+            <div class="list-group-item">
+              <div class="d-flex justify-content-between">
+                <span><i class="bi bi-calendar"></i> <?= date('d/m/Y', strtotime($surtos['data_surto'])); ?></span>
+                <span class="badge bg-warning text-dark"><?= $surtos['total']; ?> surto(s)</span>
+              </div>
+            </div>
+          <?php endforeach; ?>
+        </div>
+        <p class="mt-2 mb-0"><small class="text-muted">Total: <?= count($surtos30Dias); ?> dias com surtos</small></p>
+    <?php else: ?>
+        <p class="text-muted">Nenhum surto registrado nos últimos 30 dias para esta praga.</p>
+    <?php endif;
+    exit;
+}
+
+if ($acao === 'recomendacoes' && $pragaSelecionada) {
+    $recomendacoes = gerarRecomendacoes($pragaSelecionada['Nome']);
+    if (!empty($recomendacoes)): ?>
+        <div class="info-box mb-2">
+          <p class="mb-0"><strong>Para:</strong> <?= htmlspecialchars($pragaSelecionada['Nome']); ?></p>
+        </div>
+        <ul class="list-unstyled" style="max-height: 200px; overflow-y: auto;">
+          <?php foreach ($recomendacoes as $recomendacao): ?>
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success"></i> 
+              <small><?= htmlspecialchars($recomendacao); ?></small>
+            </li>
+          <?php endforeach; ?>
+        </ul>
+    <?php else: ?>
+        <p class="text-muted">Nenhuma recomendação disponível.</p>
+    <?php endif;
+    exit;
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <link rel="shortcut icon" href="/SMCPA/imgs/favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  <link rel="stylesheet" href="../../paginas/dashboard/dashboardadm.css">
-  <title>Dashboard - SMCPA</title>
+  <link rel="stylesheet" href="dashboardadm.css">
+  <link rel="stylesheet" href="dashboard.css">
+  <title>Dashboard Admin - SMCPA</title>
+  <style>
+    /* Ajustes para garantir que o content tenha scroll quando necessário */
+    .content {
+      overflow-y: auto;
+      align-items: flex-start !important;
+      justify-content: flex-start !important;
+    }
+    .dashboard-grid {
+      width: 100%;
+      max-width: 100%;
+    }
+  </style>
 </head>
 <body>
   <div class="dashboard-container">
@@ -136,22 +505,46 @@ $lista = $stmtPragas->fetchAll(PDO::FETCH_ASSOC);
       </div>
       <nav class="menu-lateral">
         <ul>
-          <li class="item-menu">
-            <a href="dashboard.php">
+          <!-- <li class="item-menu">
+            <a href="#">
               <span class="icon"><i class="fa-solid fa-home"></i></span>
               <span class="txt-link">Home</span>
             </a>
-          </li>
+          </li> -->
           <li class="item-menu ativo">
-            <a href="../cadastro/cadpraga.php">
+            <a href="#">
               <span class="icon"><i class="bi bi-columns-gap"></i></span>
-              <span class="txt-link">Dashboard</span>
+              <span class="txt-link">Home</span>
             </a>
           </li>
           <li class="item-menu">
             <a href="../cadastro/cadpraga.php">
               <span class="icon"><i class="bi bi-calendar-range"></i></span>
-              <span class="txt-link">Agenda</span>
+              <span class="txt-link">Cadastrar Pragas</span>
+            </a>
+          </li>
+          <li class="item-menu">
+            <a href="../cadastro/cadsurto.php">
+              <span class="icon"><i class="bi bi-exclamation-triangle"></i></span>
+              <span class="txt-link">Cadastrar Surtos</span>
+            </a>
+          </li>
+          <li class="item-menu">
+            <a href="filtros_pragas.php">
+              <span class="icon"><i class="bi bi-funnel"></i></span>
+              <span class="txt-link">Filtros de Pragas</span>
+            </a>
+          </li>
+          <li class="item-menu">
+            <a href="filtros_usuarios.php">
+              <span class="icon"><i class="bi bi-people"></i></span>
+              <span class="txt-link">Filtros de Usuários</span>
+            </a>
+          </li>
+          <li class="item-menu">
+            <a href="feedback.php">
+              <span class="icon"><i class="bi bi-chat-dots"></i></span>
+              <span class="txt-link">Feedback</span>
             </a>
           </li>
           <li class="item-menu">
@@ -165,190 +558,434 @@ $lista = $stmtPragas->fetchAll(PDO::FETCH_ASSOC);
               <span class="icon"><i class="bi bi-person-lines-fill"></i></span>
               <span class="txt-link">Conta</span>
             </a>
+          </li><li class="item-menu">
+            <a href="../login/logout.php">
+              <span class="icon"><i class="bi bi-box-arrow-right"></i></span>
+              <span class="txt-link">Sair</span>
+            </a>
           </li>
         </ul>
       </nav> 
     </aside>
 
     <!-- Main Content -->
-    <div class="tabela-container">
-      <nav class="navbar bg-body-tertiary">
-        <div class="container-fluid">
-          <form class="d-flex" role="search" action="./index.php" method="post" style="flex: 1;">
-            <input class="form-control me-2" type="search" name="procurar" placeholder="Nome" aria-label="Procurar" autofocus/>
-            <button class="btn btn-outline-success" type="submit">Procurar</button>
-          </form>
-          <div class="d-flex gap-2 ms-3">
-            <a href="perfil.php" class="btn btn-outline-primary">
-              <i class="fa-solid fa-user"></i> Perfil
+    <main class="main-content">
+      <header class="topbar">
+        <div class="left">
+        </div>
+        <div class="right d-flex align-items-center gap-3">
+          <a href="../tutorial/tutorial.php" class="btn btn-outline-light">
+            <i class="fa-solid fa-book"></i> Tutoriais
+          </a>
+            <?php if ($isAdmin): ?>
+              <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalCadastrarAdmin">
+                <i class="bi bi-shield-lock"></i> Cadastrar Admin
+              </button>
+            <?php endif; ?>
+          <a href="./perfil.php" style="text-decoration: none;">
+              <img src="<?= htmlspecialchars($imagemPerfil); ?>" 
+                   alt="Perfil do usuário" 
+                   class="rounded-circle" 
+                 style="width: 40px; height: 40px; object-fit: cover; border: 2px solid rgba(255,255,255,0.3); cursor: pointer;"
+                   onerror="this.src='/SMCPA/imgs/logotrbf.png'">
             </a>
           </div>
-        </div>
-      </nav>
+      </header>
 
-      <div class="container mt-3">
-        <!-- Mensagens de Sucesso/Erro -->
-        <?php if (isset($sucesso_redefinir)): ?>
-          <div class="alert alert-success alert-dismissible fade show" role="alert">
-            <i class="bi bi-check-circle"></i> <?php echo htmlspecialchars($sucesso_redefinir); ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-          </div>
-        <?php endif; ?>
-        
-        <?php if (isset($erro_redefinir)): ?>
-          <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            <i class="bi bi-exclamation-triangle"></i> <?php echo htmlspecialchars($erro_redefinir); ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-          </div>
-        <?php endif; ?>
-        
-        <!-- Exibindo os dados da pesquisa de usuários -->
-        <?php if (!empty($dados)): ?>
-          <div class="titulo">
-            <h2>Resultados da Pesquisa de Usuários</h2>
-          </div>
-          <table class="table table-hover">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Imagem</th>
-                <th>Nome</th>
-                <th>Email</th>
-                <th>Senha</th>
-                <th>Data de Cadastro</th>
-                <th>Opções</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php foreach ($dados as $user): ?>
-                <tr>
-                  <td><?= htmlspecialchars($user['id'] ?? 'N/A') ?></td>
-                  <td>
-                    <?php if (!empty($user['Imagem'])): ?>
-                      <img src="/uploads/usuarios/<?= htmlspecialchars($user['Imagem']); ?>" 
-                           alt="Foto de perfil" 
-                           style="width:80px; height:80px; object-fit:cover; border:1px solid #ddd; border-radius:4px;">
-                    <?php else: ?>
-                      <img src="/SMCPA/imgs/logotrbf.png" 
-                           alt="Sem foto" 
-                           style="width:80px; height:80px; object-fit:cover; opacity:0.5; border:1px solid #ddd; border-radius:4px;">
-                    <?php endif; ?>
-                  </td>
-                  <td><?= htmlspecialchars($user['usuario'] ?? 'N/A') ?></td>
-                  <td><?= htmlspecialchars($user['email'] ?? 'N/A') ?></td>
-                  <td><?= htmlspecialchars($user['senha'] ?? 'N/A') ?></td>
-                  <td><?= htmlspecialchars($user['data_cadastro'] ?? 'N/A') ?></td>
-                  <td>
-                    <a href="perfil.php?id=<?= $user['id']; ?>" class="btn btn-info btn-sm">
-                      <i class="bi bi-person-circle"></i> Ver Perfil
-                    </a>
-                    <a href="editar.php?id=<?= $user['id']; ?>" class="btn btn-primary btn-sm">Editar</a>
-                    <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#modalRedefinirSenha<?= $user['id']; ?>">
-                      <i class="bi bi-key"></i> Redefinir Senha
-                    </button>
-                    <a href="?delete_usuario=<?= $user['id']; ?>" class="btn btn-success btn-sm" onclick="return confirm('Tem certeza que deseja excluir este usuário?');">Excluir</a>
-                  </td>
-                </tr>
-              <?php endforeach; ?>
-            </tbody>
-          </table>
-        <?php else: ?>
-          <p>Nenhum usuário encontrado.</p>
-        <?php endif; ?>
-
-        <hr>
-
-        <!-- LISTA DE PRAGAS CADASTRADAS -->
-        <div class="titulo">
-          <h2>Pragas cadastradas</h2>
-        </div>
-
-        <?php if (!empty($lista)) : ?>
-          <table class="table table-hover">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Imagem</th>
-                    <th>Nome</th>
-                    <th>Planta Hospedeira</th>
-                    <th>Localidade</th>
-                    <th>Data Aparição</th>
-                    <th>Observações</th>
-                    <th>Ações</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($lista as $praga): ?>
-                    <tr>
-                        <td><?= htmlspecialchars($praga['ID']); ?></td>
-                        <td>
-                            <?php if (!empty($praga['Imagem_Not_Null'])): ?>
-                                <img src="/uploads/pragas/<?= htmlspecialchars($praga['Imagem_Not_Null']); ?>" 
-                                     alt="Imagem da praga" 
-                                     style="max-width:80px; max-height:80px;">
-                            <?php endif; ?>
-                        </td>
-                        <td><?= htmlspecialchars($praga['Nome']); ?></td>
-                        <td><?= htmlspecialchars($praga['Planta_Hospedeira']); ?></td>
-                        <td><?= htmlspecialchars($praga['Localidade']); ?></td>
-                        <td><?= htmlspecialchars($praga['Data_Aparicao']); ?></td>
-                        <td><?= nl2br(htmlspecialchars($praga['Observacoes'])); ?></td>
-                        <td class="actions">
-                            <a href="excluir_praga.php?id=<?= $praga['ID']; ?>" 
-                               class="btn btn-danger btn-sm"
-                               onclick="return confirm('Tem certeza que deseja excluir esta praga?');">
-                               Excluir
-                            </a>
-                        </td>
-                    </tr>
+      <section class="content">
+        <!-- Dashboard de Pragas (Funcionalidades do Usuário) -->
+        <div class="dashboard-grid">
+          <!-- Bloco Pragas -->
+          <div class="dashboard-item card-pragas blue-item" id="vendas-hoje" style="overflow-y: auto;">
+            <h5 class="mb-3"><i class="bi bi-bug-fill text-primary"></i> Todas as Pragas Registradas</h5>
+            <?php if (!empty($todasPragas)): ?>
+              <div class="list-group" style="max-height: 250px; overflow-y: auto;">
+                <?php foreach ($todasPragas as $praga): ?>
+                  <div class="list-group-item list-group-item-action">
+                    <div class="d-flex w-100 justify-content-between">
+                      <h6 class="mb-1"><?= htmlspecialchars($praga['Nome']); ?></h6>
+                      <small class="text-muted"><?= date('d/m/Y', strtotime($praga['Data_Aparicao'])); ?></small>
+                    </div>
+                    <p class="mb-1"><small class="text-muted"><i class="bi bi-flower1"></i> <?= htmlspecialchars($praga['Planta_Hospedeira']); ?></small></p>
+                    <p class="mb-0"><small class="text-muted"><i class="bi bi-geo-alt"></i> <?= htmlspecialchars($praga['Localidade']); ?></small></p>
+                  </div>
                 <?php endforeach; ?>
-            </tbody>
-          </table>
-        <?php else : ?>
-          <p>Nenhuma praga cadastrada ainda.</p>
+              </div>
+            <?php else: ?>
+              <p class="mt-3 text-muted">Nenhuma praga cadastrada ainda.</p>
+            <?php endif; ?>
+          </div>
+
+          <!-- Bloco Surtos -->
+          <div class="dashboard-item card-surtos orange-item" id="vendas-periodicas" style="overflow-y: auto;">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="mb-0"><i class="bi bi-exclamation-triangle-fill text-warning"></i> Surtos (Últimos 30 dias)</h5>
+              <div class="d-flex gap-2 align-items-center">
+                <?php if (!empty($todasPragas)): ?>
+                  <select class="form-select select-praga" id="select-surtos" style="width: auto; min-width: 180px; font-size: 0.85rem;" onchange="atualizarSurtos(this.value)">
+                    <option value="">Todas as pragas</option>
+                    <?php foreach ($todasPragas as $praga): ?>
+                      <option value="<?= $praga['ID']; ?>" <?= ($pragaSelecionadaID == $praga['ID']) ? 'selected' : ''; ?>>
+                        <?= htmlspecialchars($praga['Nome']); ?>
+                      </option>
+                    <?php endforeach; ?>
+                  </select>
+                <?php endif; ?>
+                <a href="../cadastro/cadsurto.php" class="btn btn-sm btn-light" title="Cadastrar novo surto">
+                  <i class="bi bi-plus-circle"></i> Novo Surto
+                </a>
+              </div>
+            </div>
+            <div id="conteudo-surtos">
+              <?php if ($pragaSelecionada && !empty($surtos30Dias)): ?>
+                <div class="info-box">
+                  <p class="mb-1"><strong>Praga:</strong> <?= htmlspecialchars($pragaSelecionada['Nome']); ?></p>
+                  <p class="mb-2"><strong>Região:</strong> Todas as regiões</p>
+                  <p class="mb-0"><small class="text-muted"><i class="bi bi-info-circle"></i> Incluindo surtos de pragas similares</small></p>
+                </div>
+                <div class="list-group" style="max-height: 180px; overflow-y: auto;">
+                  <?php foreach ($surtos30Dias as $surtos): ?>
+                    <div class="list-group-item">
+                      <div class="d-flex justify-content-between">
+                        <span><i class="bi bi-calendar"></i> <?= date('d/m/Y', strtotime($surtos['data_surto'])); ?></span>
+                        <span class="badge bg-warning text-dark"><?= $surtos['total']; ?> surto(s)</span>
+                      </div>
+                    </div>
+                  <?php endforeach; ?>
+                </div>
+                <p class="mt-2 mb-0"><small class="text-muted">Total: <?= count($surtos30Dias); ?> dias com surtos</small></p>
+              <?php elseif ($pragaSelecionada): ?>
+                <div class="alert alert-info">
+                  <i class="bi bi-info-circle"></i> Nenhum surto registrado nos últimos 30 dias para "<strong><?= htmlspecialchars($pragaSelecionada['Nome']); ?></strong>".
+                </div>
+              <?php else: ?>
+                <p class="text-muted">Selecione uma praga para ver os surtos.</p>
+              <?php endif; ?>
+            </div>
+          </div>
+
+          <!-- Bloco Recomendações -->
+          <div class="dashboard-item card-recomendacoes green-item" id="receber-hoje" style="overflow-y: auto;">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="mb-0"><i class="bi bi-lightbulb-fill text-success"></i> Recomendações</h5>
+              <?php if (!empty($todasPragas)): ?>
+                <select class="form-select select-praga" id="select-recomendacoes" style="width: auto; min-width: 180px; font-size: 0.85rem;" onchange="atualizarRecomendacoes(this.value)">
+                  <option value="">Selecione uma praga</option>
+                  <?php foreach ($todasPragas as $praga): ?>
+                    <option value="<?= $praga['ID']; ?>" <?= ($pragaSelecionadaID == $praga['ID']) ? 'selected' : ''; ?>>
+                      <?= htmlspecialchars($praga['Nome']); ?>
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+              <?php endif; ?>
+            </div>
+            <div id="conteudo-recomendacoes">
+              <?php if ($pragaSelecionada && !empty($recomendacoes)): ?>
+                <div class="info-box mb-2">
+                  <p class="mb-0"><strong>Para:</strong> <?= htmlspecialchars($pragaSelecionada['Nome']); ?></p>
+                </div>
+                <ul class="list-unstyled" style="max-height: 200px; overflow-y: auto;">
+                  <?php foreach ($recomendacoes as $index => $recomendacao): ?>
+                    <li class="mb-2">
+                      <i class="bi bi-check-circle text-success"></i> 
+                      <small><?= htmlspecialchars($recomendacao); ?></small>
+                    </li>
+                  <?php endforeach; ?>
+                </ul>
+              <?php elseif ($pragaSelecionada): ?>
+                <p class="text-muted">Nenhuma recomendação disponível.</p>
+              <?php else: ?>
+                <p class="text-muted">Selecione uma praga para ver recomendações.</p>
+              <?php endif; ?>
+            </div>
+          </div>
+
+          <!-- Bloco Relatórios -->
+          <div class="dashboard-item card-relatorios small-item" id="tabela-vendas">
+            <h5 class="mb-3"><i class="bi bi-file-earmark-text text-purple"></i> Relatórios</h5>
+            <div class="mt-3">
+              <?php if (!empty($pragasAdmin)): ?>
+                <form action="gerar_relatorio.php" method="GET" target="_blank">
+                  <div class="mb-3">
+                    <label for="praga_relatorio" class="form-label">Selecione a Praga para Gerar Relatório:</label>
+                    <select class="form-select" id="praga_relatorio" name="id" required>
+                      <option value="">-- Selecione uma praga --</option>
+                      <?php foreach ($pragasAdmin as $praga): ?>
+                        <option value="<?= $praga['ID']; ?>">
+                          <?= htmlspecialchars($praga['Nome']); ?> 
+                          - <?= htmlspecialchars($praga['Planta_Hospedeira']); ?>
+                          (<?= date('d/m/Y', strtotime($praga['Data_Aparicao'])); ?>)
+                        </option>
+                      <?php endforeach; ?>
+                    </select>
+                  </div>
+                  <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-file-earmark-pdf"></i> Gerar Relatório
+                  </button>
+                </form>
+                <div class="mt-3">
+                  <small class="text-muted">
+                    <i class="bi bi-info-circle"></i> Você pode gerar relatórios apenas das pragas que você cadastrou. Para visualizar relatórios de outras pragas, acesse <a href="filtros_pragas.php">Filtros de Pragas</a>.
+                  </small>
+                </div>
+              <?php else: ?>
+                <div class="alert alert-info">
+                  <i class="bi bi-info-circle"></i> Você ainda não cadastrou nenhuma praga. 
+                  <a href="/SMCPA/paginas/cadastro/cadpraga.php" class="alert-link">Cadastre uma praga</a> para gerar relatórios.
+                </div>
+              <?php endif; ?>
+            </div>
+          </div>
+
+          <!-- Bloco Gráfico de Surtos -->
+          <div class="dashboard-item card-grafico" id="grafico-vendas" style="grid-column: span 2; max-height: 350px;">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="mb-0"><i class="bi bi-graph-up text-info"></i> Evolução do Surtos (Últimos 30 dias)</h5>
+              <?php if (!empty($todasPragas)): ?>
+                <select class="form-select select-praga" id="select-grafico" style="width: auto; min-width: 180px; font-size: 0.85rem;" onchange="atualizarGrafico(this.value)">
+                  <option value="">Selecione uma praga</option>
+                  <?php foreach ($todasPragas as $praga): ?>
+                    <option value="<?= $praga['ID']; ?>" <?= ($pragaSelecionadaID == $praga['ID']) ? 'selected' : ''; ?>>
+                      <?= htmlspecialchars($praga['Nome']); ?>
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+              <?php endif; ?>
+            </div>
+            <div id="conteudo-grafico" style="height: 250px;">
+              <?php if ($pragaSelecionada): ?>
+                <canvas id="grafico-surtos" style="max-height: 250px;"></canvas>
+              <?php else: ?>
+                <p class="text-muted">Selecione uma praga para ver o gráfico de surtos.</p>
+              <?php endif; ?>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mensagens de Sucesso/Erro (apenas para cadastro de admin) -->
+        <?php if (isset($sucesso_cadastro_admin)): ?>
+          <div class="alert alert-success alert-dismissible fade show" role="alert" style="margin: 20px;">
+            <i class="bi bi-check-circle"></i> <?php echo htmlspecialchars($sucesso_cadastro_admin); ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          </div>
         <?php endif; ?>
-      </div>
-    </div>
+        
+        <?php if (isset($erro_cadastro_admin)): ?>
+          <div class="alert alert-danger alert-dismissible fade show" role="alert" style="margin: 20px;">
+            <i class="bi bi-exclamation-triangle"></i> <?php echo htmlspecialchars($erro_cadastro_admin); ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          </div>
+        <?php endif; ?>
+      </section>
+    </main>
   </div>
 
-  <!-- Modais para Redefinir Senha -->
-  <?php if (!empty($dados)): ?>
-    <?php foreach ($dados as $user): ?>
-      <div class="modal fade" id="modalRedefinirSenha<?= $user['id']; ?>" tabindex="-1">
-        <div class="modal-dialog">
-          <div class="modal-content">
-            <div class="modal-header bg-warning">
-              <h5 class="modal-title">
-                <i class="bi bi-key"></i> Redefinir Senha - <?= htmlspecialchars($user['usuario']); ?>
-              </h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <form method="POST">
-              <div class="modal-body">
-                <input type="hidden" name="usuario_id" value="<?= $user['id']; ?>">
-                <div class="mb-3">
-                  <label for="nova_senha_<?= $user['id']; ?>" class="form-label">Nova Senha (em texto plano)</label>
-                  <input type="text" class="form-control" id="nova_senha_<?= $user['id']; ?>" 
-                         name="nova_senha" required placeholder="Digite a nova senha">
-                  <small class="text-muted">A senha será armazenada exatamente como digitada (sem criptografia)</small>
-                </div>
-                <div class="alert alert-info">
-                  <i class="bi bi-info-circle"></i> <strong>Senha atual:</strong> <?= htmlspecialchars($user['senha']); ?>
-                </div>
-              </div>
-              <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="submit" name="redefinir_senha" class="btn btn-warning">
-                  <i class="bi bi-check-circle"></i> Redefinir Senha
-                </button>
-              </div>
-            </form>
+  <!-- Modal para Cadastrar Administrador -->
+  <?php if ($isAdmin): ?>
+    <div class="modal fade" id="modalCadastrarAdmin" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header bg-danger text-white">
+            <h5 class="modal-title">
+              <i class="bi bi-shield-lock"></i> Cadastrar Novo Administrador
+            </h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
+          <form method="POST">
+            <div class="modal-body">
+              <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i> <strong>Atenção:</strong> Apenas administradores podem cadastrar outros administradores.
+              </div>
+              <div class="mb-3">
+                <label for="usuario_admin" class="form-label">Nome do Administrador</label>
+                <input type="text" class="form-control" id="usuario_admin" 
+                       name="usuario_admin" required placeholder="Digite o nome do administrador">
+              </div>
+              <div class="mb-3">
+                <label for="email_admin" class="form-label">E-mail</label>
+                <input type="email" class="form-control" id="email_admin" 
+                       name="email_admin" required placeholder="Digite o e-mail">
+              </div>
+              <div class="mb-3">
+                <label for="senha_admin" class="form-label">Senha</label>
+                <input type="password" class="form-control" id="senha_admin" 
+                       name="senha_admin" required placeholder="Digite a senha" minlength="6">
+                <small class="text-muted">A senha deve ter no mínimo 6 caracteres e será criptografada.</small>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+              <button type="submit" name="cadastrar_admin" class="btn btn-danger">
+                <i class="bi bi-shield-check"></i> Cadastrar Administrador
+              </button>
+            </div>
+          </form>
         </div>
       </div>
-    <?php endforeach; ?>
+    </div>
   <?php endif; ?>
 
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="/SMCPA/js/menu.js"></script>
+  <script>
+    // Dados das pragas para JavaScript
+    const todasPragas = <?= json_encode($todasPragas); ?>;
+    const localidadeUsuario = <?= json_encode($localidadeUsuario); ?>;
+    
+    // Função para atualizar surtos via AJAX
+    function atualizarSurtos(pragaID) {
+      if (!pragaID) {
+        document.getElementById('conteudo-surtos').innerHTML = '<p class="mt-3">Selecione uma praga para ver os surtos.</p>';
+        return;
+      }
+      
+      const praga = todasPragas.find(p => p.ID == pragaID);
+      if (!praga) return;
+      
+      // Fazer requisição AJAX
+      fetch(`dashboardadm.php?praga_id=${pragaID}&acao=surtos`)
+        .then(response => response.text())
+        .then(html => {
+          document.getElementById('conteudo-surtos').innerHTML = html;
+        })
+        .catch(error => console.error('Erro:', error));
+    }
+    
+    // Função para atualizar recomendações via AJAX
+    function atualizarRecomendacoes(pragaID) {
+      if (!pragaID) {
+        document.getElementById('conteudo-recomendacoes').innerHTML = '<p class="mt-3">Selecione uma praga para ver recomendações.</p>';
+        return;
+      }
+      
+      const praga = todasPragas.find(p => p.ID == pragaID);
+      if (!praga) return;
+      
+      // Fazer requisição AJAX
+      fetch(`dashboardadm.php?praga_id=${pragaID}&acao=recomendacoes`)
+        .then(response => response.text())
+        .then(html => {
+          document.getElementById('conteudo-recomendacoes').innerHTML = html;
+        })
+        .catch(error => console.error('Erro:', error));
+    }
+    
+    // Função para atualizar gráfico via AJAX
+    function atualizarGrafico(pragaID) {
+      if (!pragaID) {
+        document.getElementById('conteudo-grafico').innerHTML = '<p class="mt-3">Selecione uma praga para ver o gráfico de surtos.</p>';
+        return;
+      }
+      
+      // Recarregar página com nova praga selecionada
+      window.location.href = `dashboardadm.php?praga_id=${pragaID}`;
+    }
+    
+    <?php if ($pragaSelecionada && !empty($dadosGrafico)): ?>
+    // Preparar dados do gráfico
+    const surtosData = <?= json_encode($dadosGrafico); ?>;
+    const pragaNome = <?= json_encode($pragaSelecionada['Nome']); ?>;
+    
+    // Criar labels (datas) e dados (quantidade de surtos)
+    const labels = surtosData.map(item => {
+      const date = new Date(item.Data_Aparicao);
+      return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    });
+    
+    const dados = surtosData.map(item => parseInt(item.total));
+    
+    // Dados do gráfico de linha
+    const data = {
+      labels: labels,
+      datasets: [{
+        label: 'Surtos de ' + pragaNome,
+        data: dados,
+        borderColor: '#dc3545',
+        backgroundColor: 'rgba(220, 53, 69, 0.2)',
+        fill: true,
+        tension: 0.4,
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        pointBackgroundColor: '#dc3545',
+        pointBorderColor: '#fff',
+        pointBorderWidth: 2
+      }]
+    };
+
+    const options = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { 
+          position: 'top',
+          display: true
+        },
+        tooltip: { 
+          enabled: true,
+          callbacks: {
+            label: function(context) {
+              return 'Surtos: ' + context.parsed.y;
+            }
+          }
+        },
+        title: {
+          display: false
+        }
+      },
+      scales: {
+        y: { 
+          beginAtZero: true,
+          ticks: {
+            stepSize: 1
+          },
+          title: {
+            display: true,
+            text: 'Quantidade de Surtos'
+          }
+        },
+        x: {
+          title: {
+            display: true,
+            text: 'Data'
+          }
+        }
+      }
+    };
+
+    const ctxSurtos = document.getElementById('grafico-surtos');
+    if (ctxSurtos) {
+      const graficoSurtos = new Chart(ctxSurtos, {
+        type: 'line',
+        data: data,
+        options: options
+      });
+    }
+    <?php elseif ($pragaSelecionada): ?>
+    // Se não houver dados, criar gráfico vazio
+    const ctxSurtosVazio = document.getElementById('grafico-surtos');
+    if (ctxSurtosVazio) {
+      const graficoSurtosVazio = new Chart(ctxSurtosVazio, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [{
+            label: 'Nenhum surto registrado',
+            data: [],
+            borderColor: '#6c757d',
+            backgroundColor: 'rgba(108, 117, 125, 0.2)'
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'top' }
+          }
+        }
+      });
+    }
+    <?php endif; ?>
+  </script>
 </body>
 </html>

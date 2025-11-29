@@ -202,10 +202,39 @@ $pragaGraficoID = $_GET['praga_grafico'] ?? ($pragaSelecionadaID ?? null);
 
 // Buscar praga selecionada para o gráfico
 if ($pragaGraficoID) {
-    foreach ($pragasComImagens as $praga) {
-        if ($praga['ID'] == $pragaGraficoID) {
-            $pragaSelecionadaGrafico = $praga;
-            break;
+    try {
+        // Buscar o nome da praga pelo ID (pode ser qualquer atualização dessa praga)
+        $stmtPragaSelecionada = $pdo->prepare("SELECT DISTINCT Nome, MIN(ID) as ID, MIN(Planta_Hospedeira) as Planta_Hospedeira
+                                                FROM Pragas_Surtos 
+                                                WHERE ID = :pragaID 
+                                                AND ID_Usuario = :usuarioID 
+                                                AND Imagem_Not_Null IS NOT NULL 
+                                                AND Imagem_Not_Null != ''
+                                                GROUP BY Nome
+                                                LIMIT 1");
+        $stmtPragaSelecionada->bindParam(':pragaID', $pragaGraficoID, PDO::PARAM_INT);
+        $stmtPragaSelecionada->bindParam(':usuarioID', $usuarioID, PDO::PARAM_INT);
+        $stmtPragaSelecionada->execute();
+        $pragaResult = $stmtPragaSelecionada->fetch(PDO::FETCH_ASSOC);
+        
+        if ($pragaResult) {
+            $pragaSelecionadaGrafico = $pragaResult;
+        } else {
+            // Tentar encontrar pelo ID mínimo na lista
+            foreach ($pragasComImagens as $praga) {
+                if ($praga['ID'] == $pragaGraficoID) {
+                    $pragaSelecionadaGrafico = $praga;
+                    break;
+                }
+            }
+        }
+    } catch (PDOException $e) {
+        // Em caso de erro, tentar encontrar na lista
+        foreach ($pragasComImagens as $praga) {
+            if ($praga['ID'] == $pragaGraficoID) {
+                $pragaSelecionadaGrafico = $praga;
+                break;
+            }
         }
     }
 }
@@ -213,17 +242,21 @@ if ($pragaGraficoID) {
 try {
     $dataLimite = date('Y-m-d', strtotime('-30 days'));
     
-    // Buscar atualizações do cadastro da praga selecionada (apenas com imagens)
+    // Buscar dados de infestação (média de pragas por planta) da praga selecionada
+    // Mostrar cada atualização individualmente para ver evolução/queda
     if ($pragaSelecionadaGrafico) {
         $nomePragaGrafico = $pragaSelecionadaGrafico['Nome'];
-        $sql = "SELECT DATE(Data_Aparicao) as data_atualizacao, COUNT(*) as total 
+        $sql = "SELECT Data_Aparicao, 
+                       media_pragas_planta,
+                       severidade
                 FROM Pragas_Surtos 
                 WHERE ID_Usuario = :usuarioID 
                 AND Nome = :nomePraga
                 AND Imagem_Not_Null IS NOT NULL 
                 AND Imagem_Not_Null != ''
+                AND media_pragas_planta IS NOT NULL
+                AND media_pragas_planta > 0
                 AND Data_Aparicao >= :dataLimite
-                GROUP BY DATE(Data_Aparicao)
                 ORDER BY Data_Aparicao ASC";
         
         $stmtGrafico = $pdo->prepare($sql);
@@ -231,64 +264,52 @@ try {
         $stmtGrafico->bindParam(':nomePraga', $nomePragaGrafico, PDO::PARAM_STR);
         $stmtGrafico->bindValue(':dataLimite', $dataLimite, PDO::PARAM_STR);
         $stmtGrafico->execute();
-        $atualizacoesGrafico = $stmtGrafico->fetchAll(PDO::FETCH_ASSOC);
+        $dadosInfestacao = $stmtGrafico->fetchAll(PDO::FETCH_ASSOC);
         
-        // Preparar dados para o gráfico (preencher dias sem atualizações com 0)
-        $dataInicio = new DateTime($dataLimite);
-        $dataFim = new DateTime();
-        $intervalo = new DateInterval('P1D');
-        $periodo = new DatePeriod($dataInicio, $intervalo, $dataFim);
-        
-        $atualizacoesPorData = [];
-        foreach ($atualizacoesGrafico as $atualizacao) {
-            $atualizacoesPorData[$atualizacao['data_atualizacao']] = (int)$atualizacao['total'];
+        // Criar um ponto no gráfico para cada atualização individual
+        foreach ($dadosInfestacao as $registro) {
+            if ($registro['media_pragas_planta'] !== null && $registro['media_pragas_planta'] > 0) {
+                $dadosGrafico[] = [
+                    'Data_Aparicao' => $registro['Data_Aparicao'],
+                    'media_pragas' => round((float)$registro['media_pragas_planta'], 2)
+                ];
+            }
         }
         
-        foreach ($periodo as $data) {
-            $dataStr = $data->format('Y-m-d');
-            $dadosGrafico[] = [
-                'Data_Aparicao' => $dataStr,
-                'total' => isset($atualizacoesPorData[$dataStr]) ? $atualizacoesPorData[$dataStr] : 0
-            ];
-        }
     } else {
-        // Se não houver praga selecionada, buscar todas as atualizações do usuário (com fotos)
-        $sql = "SELECT DATE(Data_Aparicao) as data_atualizacao, COUNT(*) as total 
+        // Se não houver praga selecionada, buscar todas as pragas do usuário
+        $sql = "SELECT Data_Aparicao, 
+                       media_pragas_planta,
+                       severidade,
+                       Nome
                 FROM Pragas_Surtos 
                 WHERE ID_Usuario = :usuarioID 
                 AND Imagem_Not_Null IS NOT NULL 
                 AND Imagem_Not_Null != ''
+                AND media_pragas_planta IS NOT NULL
+                AND media_pragas_planta > 0
                 AND Data_Aparicao >= :dataLimite
-                GROUP BY DATE(Data_Aparicao)
                 ORDER BY Data_Aparicao ASC";
         
         $stmtGrafico = $pdo->prepare($sql);
         $stmtGrafico->bindParam(':usuarioID', $usuarioID, PDO::PARAM_INT);
         $stmtGrafico->bindValue(':dataLimite', $dataLimite, PDO::PARAM_STR);
         $stmtGrafico->execute();
-        $atualizacoesGrafico = $stmtGrafico->fetchAll(PDO::FETCH_ASSOC);
+        $dadosInfestacao = $stmtGrafico->fetchAll(PDO::FETCH_ASSOC);
         
-        // Preparar dados para o gráfico (preencher dias sem atualizações com 0)
-        $dataInicio = new DateTime($dataLimite);
-        $dataFim = new DateTime();
-        $intervalo = new DateInterval('P1D');
-        $periodo = new DatePeriod($dataInicio, $intervalo, $dataFim);
-        
-        $atualizacoesPorData = [];
-        foreach ($atualizacoesGrafico as $atualizacao) {
-            $atualizacoesPorData[$atualizacao['data_atualizacao']] = (int)$atualizacao['total'];
-        }
-        
-        foreach ($periodo as $data) {
-            $dataStr = $data->format('Y-m-d');
-            $dadosGrafico[] = [
-                'Data_Aparicao' => $dataStr,
-                'total' => isset($atualizacoesPorData[$dataStr]) ? $atualizacoesPorData[$dataStr] : 0
-            ];
+        // Criar um ponto no gráfico para cada atualização individual
+        foreach ($dadosInfestacao as $registro) {
+            if ($registro['media_pragas_planta'] !== null && $registro['media_pragas_planta'] > 0) {
+                $dadosGrafico[] = [
+                    'Data_Aparicao' => $registro['Data_Aparicao'],
+                    'media_pragas' => round((float)$registro['media_pragas_planta'], 2)
+                ];
+            }
         }
     }
 } catch (PDOException $e) {
     $dadosGrafico = [];
+    error_log("Erro ao buscar dados do gráfico: " . $e->getMessage());
 }
 
 // Função para gerar recomendações baseadas na praga
@@ -505,6 +526,101 @@ if ($acao === 'recomendacoes' && $pragaSelecionada) {
     <?php else: ?>
         <p class="text-muted">Nenhuma recomendação disponível.</p>
     <?php endif;
+    exit;
+}
+
+// Endpoint AJAX para buscar dados do gráfico
+if ($acao === 'dados_grafico') {
+    header('Content-Type: application/json');
+    
+    $pragaIDGrafico = $_GET['praga_id'] ?? null;
+    $dadosGraficoAjax = [];
+    $pragaNomeGraficoAjax = 'Todas as Pragas';
+    
+    try {
+        $dataLimite = date('Y-m-d', strtotime('-30 days'));
+        
+        if ($pragaIDGrafico) {
+            // Buscar nome da praga pelo ID
+            $stmtPragaNome = $pdo->prepare("SELECT DISTINCT Nome FROM Pragas_Surtos 
+                                            WHERE ID = :pragaID AND ID_Usuario = :usuarioID 
+                                            AND Imagem_Not_Null IS NOT NULL 
+                                            AND Imagem_Not_Null != ''
+                                            LIMIT 1");
+            $stmtPragaNome->bindParam(':pragaID', $pragaIDGrafico, PDO::PARAM_INT);
+            $stmtPragaNome->bindParam(':usuarioID', $usuarioID, PDO::PARAM_INT);
+            $stmtPragaNome->execute();
+            $pragaResult = $stmtPragaNome->fetch(PDO::FETCH_ASSOC);
+            
+            if ($pragaResult) {
+                $nomePragaGraficoAjax = $pragaResult['Nome'];
+                $pragaNomeGraficoAjax = $nomePragaGraficoAjax;
+                
+                $sql = "SELECT Data_Aparicao, 
+                               media_pragas_planta,
+                               severidade
+                        FROM Pragas_Surtos 
+                        WHERE ID_Usuario = :usuarioID 
+                        AND Nome = :nomePraga
+                        AND Imagem_Not_Null IS NOT NULL 
+                        AND Imagem_Not_Null != ''
+                        AND media_pragas_planta IS NOT NULL
+                        AND media_pragas_planta > 0
+                        AND Data_Aparicao >= :dataLimite
+                        ORDER BY Data_Aparicao ASC";
+                
+                $stmtGrafico = $pdo->prepare($sql);
+                $stmtGrafico->bindParam(':usuarioID', $usuarioID, PDO::PARAM_INT);
+                $stmtGrafico->bindParam(':nomePraga', $nomePragaGraficoAjax, PDO::PARAM_STR);
+                $stmtGrafico->bindValue(':dataLimite', $dataLimite, PDO::PARAM_STR);
+                $stmtGrafico->execute();
+                $dadosInfestacao = $stmtGrafico->fetchAll(PDO::FETCH_ASSOC);
+            } else {
+                $dadosInfestacao = [];
+            }
+        } else {
+            // Buscar todas as pragas
+            $sql = "SELECT Data_Aparicao, 
+                           media_pragas_planta,
+                           severidade,
+                           Nome
+                    FROM Pragas_Surtos 
+                    WHERE ID_Usuario = :usuarioID 
+                    AND Imagem_Not_Null IS NOT NULL 
+                    AND Imagem_Not_Null != ''
+                    AND media_pragas_planta IS NOT NULL
+                    AND media_pragas_planta > 0
+                    AND Data_Aparicao >= :dataLimite
+                    ORDER BY Data_Aparicao ASC";
+            
+            $stmtGrafico = $pdo->prepare($sql);
+            $stmtGrafico->bindParam(':usuarioID', $usuarioID, PDO::PARAM_INT);
+            $stmtGrafico->bindValue(':dataLimite', $dataLimite, PDO::PARAM_STR);
+            $stmtGrafico->execute();
+            $dadosInfestacao = $stmtGrafico->fetchAll(PDO::FETCH_ASSOC);
+        }
+        
+        // Criar um ponto no gráfico para cada atualização individual
+        foreach ($dadosInfestacao as $registro) {
+            if ($registro['media_pragas_planta'] !== null && $registro['media_pragas_planta'] > 0) {
+                $dadosGraficoAjax[] = [
+                    'Data_Aparicao' => $registro['Data_Aparicao'],
+                    'media_pragas' => round((float)$registro['media_pragas_planta'], 2)
+                ];
+            }
+        }
+        
+        echo json_encode([
+            'success' => true,
+            'dados' => $dadosGraficoAjax,
+            'pragaNome' => $pragaNomeGraficoAjax
+        ]);
+    } catch (PDOException $e) {
+        echo json_encode([
+            'success' => false,
+            'error' => $e->getMessage()
+        ]);
+    }
     exit;
 }
 ?>
@@ -830,10 +946,10 @@ if ($acao === 'recomendacoes' && $pragaSelecionada) {
             </div>
           </div>
 
-          <!-- Bloco Gráfico de Atualizações do Cadastro -->
+          <!-- Bloco Gráfico de Infestação -->
           <div class="dashboard-item card-grafico" id="grafico-vendas" style="grid-column: span 2; max-height: 350px;">
             <div class="d-flex justify-content-between align-items-center mb-3">
-              <h5 class="mb-0"><i class="bi bi-graph-up text-info"></i> Evolução das Atualizações do Cadastro (Últimos 30 dias)</h5>
+              <h5 class="mb-0"><i class="bi bi-graph-up text-danger"></i> Evolução da Infestação - Média de Pragas por Planta (Últimos 30 dias)</h5>
               <?php if (!empty($pragasComImagens)): ?>
                 <select class="form-select" id="select-praga-grafico" style="width: auto; min-width: 200px; font-size: 0.9rem;" onchange="atualizarGrafico(this.value)">
                   <option value="">Todas as pragas</option>
@@ -851,22 +967,22 @@ if ($acao === 'recomendacoes' && $pragaSelecionada) {
               <?php elseif (!empty($pragasComImagens)): ?>
                 <div class="alert alert-warning" style="font-size: 0.9rem;">
                   <i class="bi bi-exclamation-triangle"></i> 
-                  <strong>Nenhuma atualização registrada</strong> nos últimos 30 dias para a praga selecionada.
-                  <br><small>Para gerar o gráfico, cadastre ou atualize suas pragas com fotos regularmente.</small>
+                  <strong>Nenhum dado de infestação registrado</strong> nos últimos 30 dias para a praga selecionada.
+                  <br><small>Para gerar o gráfico, cadastre ou atualize suas pragas informando a média de pragas por planta.</small>
                 </div>
               <?php else: ?>
                 <div class="alert alert-info" style="font-size: 0.9rem;">
                   <i class="bi bi-info-circle"></i> 
-                  <strong>Nenhuma praga com foto cadastrada.</strong>
-                  <br><small>Para gerar o gráfico, você precisa cadastrar pragas com fotos. <a href="../cadastro/cadpraga.php" class="alert-link">Cadastrar praga com foto</a></small>
+                  <strong>Nenhuma praga cadastrada.</strong>
+                  <br><small>Para gerar o gráfico, você precisa cadastrar pragas com informações de infestação. <a href="../cadastro/cadpraga.php" class="alert-link">Cadastrar praga</a></small>
                 </div>
               <?php endif; ?>
             </div>
             <?php if (!empty($pragasComImagens)): ?>
               <div class="mt-2">
                 <small class="text-muted">
-                  <i class="bi bi-info-circle"></i> O gráfico mostra as atualizações do cadastro de pragas com fotos. 
-                  Atualize seus cadastros regularmente para manter o gráfico atualizado.
+                  <i class="bi bi-info-circle"></i> O gráfico mostra a evolução da infestação através da média de pragas por planta ao longo do tempo. 
+                  Atualize seus cadastros regularmente informando a média de pragas por planta para manter o gráfico atualizado.
                 </small>
               </div>
             <?php endif; ?>
@@ -928,86 +1044,202 @@ if ($acao === 'recomendacoes' && $pragaSelecionada) {
         .catch(error => console.error('Erro:', error));
     }
     
+    // Variável global para instância do gráfico
+    let graficoSurtosInstance = null;
+    
+    // Função para criar o gráfico
+    function criarGrafico(dadosGraficoArray, pragaNome) {
+        // Formatar labels com data e hora quando necessário
+        const labels = dadosGraficoArray.map((item, index) => {
+            const date = new Date(item.Data_Aparicao);
+            // Se houver múltiplas atualizações no mesmo dia, mostrar hora também
+            const mesmoDia = index > 0 && 
+                new Date(dadosGraficoArray[index-1].Data_Aparicao).toDateString() === date.toDateString();
+            
+            if (mesmoDia || dadosGraficoArray.length > 0 && 
+                dadosGraficoArray.filter(d => {
+                    const dDate = new Date(d.Data_Aparicao);
+                    return dDate.toDateString() === date.toDateString();
+                }).length > 1) {
+                return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' +
+                       date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            } else {
+                return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            }
+        });
+        
+        const dados = dadosGraficoArray.map(item => parseFloat(item.media_pragas) || 0);
+        
+        // Calcular variação para cada ponto (evolução)
+        const variacoes = dados.map((valor, index) => {
+            if (index === 0) return null;
+            const anterior = dados[index - 1];
+            const variacao = valor - anterior;
+            const percentual = anterior > 0 ? ((variacao / anterior) * 100).toFixed(1) : 0;
+            return { variacao: variacao.toFixed(2), percentual: percentual };
+        });
+        
+        // Cores dos pontos baseadas na evolução
+        const coresPontos = dados.map((valor, index) => {
+            if (index === 0) return '#dc3545'; // Vermelho para primeiro ponto
+            const anterior = dados[index - 1];
+            if (valor > anterior) return '#dc3545'; // Vermelho para aumento
+            if (valor < anterior) return '#28a745'; // Verde para queda
+            return '#ffc107'; // Amarelo para sem mudança
+        });
+        
+        // Dados do gráfico de linha
+        const data = {
+            labels: labels,
+            datasets: [{
+                label: 'Evolução da Infestação - ' + pragaNome,
+                data: dados,
+                borderColor: '#dc3545',
+                backgroundColor: 'rgba(220, 53, 69, 0.2)',
+                fill: true,
+                tension: 0.3,
+                pointRadius: 6,
+                pointHoverRadius: 8,
+                pointBackgroundColor: coresPontos,
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2
+            }]
+        };
+
+        const options = {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            },
+            plugins: {
+                legend: { 
+                    position: 'top',
+                    display: true
+                },
+                tooltip: { 
+                    enabled: true,
+                    callbacks: {
+                        title: function(context) {
+                            const index = context[0].dataIndex;
+                            const date = new Date(dadosGraficoArray[index].Data_Aparicao);
+                            return date.toLocaleDateString('pt-BR', { 
+                                day: '2-digit', 
+                                month: 'long', 
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                            });
+                        },
+                        label: function(context) {
+                            const index = context.dataIndex;
+                            const valor = context.parsed.y;
+                            let texto = 'Média: ' + valor.toFixed(2) + ' pragas/planta';
+                            
+                            // Adicionar informação de evolução
+                            if (index > 0) {
+                                const variacao = variacoes[index];
+                                if (variacao) {
+                                    const variacaoNum = parseFloat(variacao.variacao);
+                                    const percentual = variacao.percentual;
+                                    if (variacaoNum > 0) {
+                                        texto += '\n↗ Aumento: +' + Math.abs(variacaoNum).toFixed(2) + ' (' + percentual + '%)';
+                                    } else if (variacaoNum < 0) {
+                                        texto += '\n↘ Queda: ' + variacaoNum.toFixed(2) + ' (' + percentual + '%)';
+                                    } else {
+                                        texto += '\n→ Sem mudança';
+                                    }
+                                }
+                            }
+                            
+                            return texto;
+                        }
+                    }
+                },
+                title: {
+                    display: false
+                }
+            },
+            scales: {
+                y: { 
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 0.5,
+                        callback: function(value) {
+                            return value.toFixed(1);
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Média de Pragas por Planta'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Data e Hora das Atualizações'
+                    },
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 45
+                    }
+                }
+            }
+        };
+
+        const ctxSurtos = document.getElementById('grafico-surtos');
+        if (ctxSurtos) {
+            // Destruir gráfico anterior se existir
+            if (graficoSurtosInstance) {
+                graficoSurtosInstance.destroy();
+            }
+            
+            graficoSurtosInstance = new Chart(ctxSurtos, {
+                type: 'line',
+                data: data,
+                options: options
+            });
+        }
+    }
+    
     <?php if (!empty($dadosGrafico)): ?>
-    // Preparar dados do gráfico
+    // Preparar dados do gráfico inicial
     const atualizacoesData = <?= json_encode($dadosGrafico); ?>;
     const pragaNomeGrafico = <?= json_encode($pragaSelecionadaGrafico ? $pragaSelecionadaGrafico['Nome'] : 'Todas as Pragas'); ?>;
     
-    // Criar labels (datas) e dados (quantidade de atualizações)
-    const labels = atualizacoesData.map(item => {
-      const date = new Date(item.Data_Aparicao);
-      return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-    });
-    
-    const dados = atualizacoesData.map(item => parseInt(item.total));
-    
-    // Dados do gráfico de linha
-    const data = {
-      labels: labels,
-      datasets: [{
-        label: 'Atualizações - ' + pragaNomeGrafico,
-        data: dados,
-        borderColor: '#0d6efd',
-        backgroundColor: 'rgba(13, 110, 253, 0.2)',
-        fill: true,
-        tension: 0.4,
-        pointRadius: 5,
-        pointHoverRadius: 7,
-        pointBackgroundColor: '#0d6efd',
-        pointBorderColor: '#fff',
-        pointBorderWidth: 2
-      }]
-    };
-
-    const options = {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { 
-          position: 'top',
-          display: true
-        },
-        tooltip: { 
-          enabled: true,
-          callbacks: {
-            label: function(context) {
-              return 'Atualizações: ' + context.parsed.y;
-            }
-          }
-        },
-        title: {
-          display: false
-        }
-      },
-      scales: {
-        y: { 
-          beginAtZero: true,
-          ticks: {
-            stepSize: 1
-          },
-          title: {
-            display: true,
-            text: 'Quantidade de Atualizações'
-          }
-        },
-        x: {
-          title: {
-            display: true,
-            text: 'Data'
-          }
-        }
-      }
-    };
-
-    const ctxSurtos = document.getElementById('grafico-surtos');
-    if (ctxSurtos) {
-      const graficoSurtos = new Chart(ctxSurtos, {
-        type: 'line',
-        data: data,
-        options: options
-      });
-    }
+    // Criar gráfico inicial
+    criarGrafico(atualizacoesData, pragaNomeGrafico);
     <?php endif; ?>
+    
+    function atualizarGrafico(pragaID) {
+        const conteudoGrafico = document.getElementById('conteudo-grafico');
+        const url = pragaID ? `dashboard.php?acao=dados_grafico&praga_id=${pragaID}` : 'dashboard.php?acao=dados_grafico';
+        
+        // Mostrar loading
+        conteudoGrafico.innerHTML = '<div class="text-center p-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Carregando...</span></div></div>';
+        
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.dados && data.dados.length > 0) {
+                    // Criar canvas se não existir
+                    if (!document.getElementById('grafico-surtos')) {
+                        conteudoGrafico.innerHTML = '<canvas id="grafico-surtos" style="max-height: 250px;"></canvas>';
+                    }
+                    
+                    // Usar a função criarGrafico para renderizar
+                    criarGrafico(data.dados, data.pragaNome);
+                } else {
+                    // Não há dados
+                    conteudoGrafico.innerHTML = '<div class="alert alert-warning" style="font-size: 0.9rem;"><i class="bi bi-exclamation-triangle"></i> <strong>Nenhum dado de infestação registrado</strong> nos últimos 30 dias para a praga selecionada.<br><small>Para gerar o gráfico, cadastre ou atualize suas pragas informando a média de pragas por planta.</small></div>';
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao carregar gráfico:', error);
+                conteudoGrafico.innerHTML = '<div class="alert alert-danger" style="font-size: 0.9rem;"><i class="bi bi-exclamation-triangle"></i> Erro ao carregar dados do gráfico.</div>';
+            });
+    }
   </script>
 </body>
 </html>

@@ -37,29 +37,8 @@ try {
     exit;
 }
 
-// Contar quantas vezes esta praga (mesmo nome) foi cadastrada/atualizada pelo usuário
-// Excluindo o registro atual que será atualizado
-$numAtualizacoes = 0;
-try {
-    $stmtCount = $pdo->prepare("SELECT COUNT(*) as total FROM Pragas_Surtos 
-                                WHERE Nome = :nome AND ID_Usuario = :usuarioID 
-                                AND ID != :pragaID
-                                AND Imagem_Not_Null IS NOT NULL AND Imagem_Not_Null != ''");
-    $stmtCount->bindParam(':nome', $pragaOriginal['Nome'], PDO::PARAM_STR);
-    $stmtCount->bindParam(':usuarioID', $usuarioID, PDO::PARAM_INT);
-    $stmtCount->bindParam(':pragaID', $pragaID, PDO::PARAM_INT);
-    $stmtCount->execute();
-    $result = $stmtCount->fetch(PDO::FETCH_ASSOC);
-    $numAtualizacoes = $result['total'] ?? 0;
-} catch (PDOException $e) {
-    $numAtualizacoes = 0;
-}
-
-// Lógica: 
-// - Primeira cadastro: numAtualizacoes = 0 (não gera)
-// - Primeira atualização: numAtualizacoes = 1 (não gera)
-// - Segunda atualização: numAtualizacoes = 2 (gera relatório)
-$gerarRelatorio = ($numAtualizacoes >= 1); // Se já tem pelo menos 1 registro anterior, esta será a 2ª ou mais atualização
+// Verificar se a praga já tem média de pragas por planta preenchida para mostrar mensagem adequada
+$temMediaPreenchida = !empty($pragaOriginal['media_pragas_planta']) && $pragaOriginal['media_pragas_planta'] > 0;
 
 // Verificar e criar colunas adicionais se não existirem
 try {
@@ -104,94 +83,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
             }
         }
         
-        // Criar NOVO registro (manter histórico)
-        $stmtInsert = $pdo->prepare("INSERT INTO Pragas_Surtos 
-                                    (Nome, Planta_Hospedeira, Descricao, Imagem_Not_Null, ID_Praga, 
-                                     Localidade, Data_Aparicao, Observacoes, ID_Usuario,
-                                     media_pragas_planta, severidade) 
-                                    VALUES (:nome, :planta_hospedeira, :descricao, :imagem, :id_praga, 
-                                            :localidade, :data_aparicao, :observacoes, :usuario_id,
-                                            :media_pragas_planta, :severidade)");
+        // Atualizar registro existente (sobrepor)
+        $sqlUpdate = "UPDATE Pragas_Surtos SET 
+                        Nome = :nome, 
+                        Planta_Hospedeira = :planta_hospedeira, 
+                        Descricao = :descricao, 
+                        ID_Praga = :id_praga, 
+                        Localidade = :localidade, 
+                        Data_Aparicao = :data_aparicao, 
+                        Observacoes = :observacoes,
+                        media_pragas_planta = :media_pragas_planta, 
+                        severidade = :severidade";
         
-        $stmtInsert->bindParam(':nome', $nome, PDO::PARAM_STR);
-        $stmtInsert->bindParam(':planta_hospedeira', $planta_hospedeira, PDO::PARAM_STR);
-        $stmtInsert->bindParam(':descricao', $descricao, PDO::PARAM_STR);
-        $stmtInsert->bindParam(':imagem', $imagemNome, PDO::PARAM_STR);
-        $stmtInsert->bindParam(':id_praga', $id_praga, PDO::PARAM_STR);
-        $stmtInsert->bindParam(':localidade', $localidade, PDO::PARAM_STR);
-        $stmtInsert->bindParam(':data_aparicao', $data_aparicao, PDO::PARAM_STR);
-        $stmtInsert->bindParam(':observacoes', $observacoes, PDO::PARAM_STR);
-        $stmtInsert->bindParam(':usuario_id', $usuarioID, PDO::PARAM_INT);
-        $stmtInsert->bindParam(':media_pragas_planta', $media_pragas_planta, $media_pragas_planta !== null ? PDO::PARAM_STR : PDO::PARAM_NULL);
-        $stmtInsert->bindParam(':severidade', $severidade, $severidade !== null ? PDO::PARAM_STR : PDO::PARAM_NULL);
+        // Se houver nova imagem, atualizar também
+        if (!empty($imagemNome)) {
+            $sqlUpdate .= ", Imagem_Not_Null = :imagem";
+        }
         
-        if ($stmtInsert->execute()) {
-            $novoPragaID = $pdo->lastInsertId();
+        $sqlUpdate .= " WHERE ID = :pragaID AND ID_Usuario = :usuario_id";
+        
+        $stmtUpdate = $pdo->prepare($sqlUpdate);
+        $stmtUpdate->bindParam(':nome', $nome, PDO::PARAM_STR);
+        $stmtUpdate->bindParam(':planta_hospedeira', $planta_hospedeira, PDO::PARAM_STR);
+        $stmtUpdate->bindParam(':descricao', $descricao, PDO::PARAM_STR);
+        $stmtUpdate->bindParam(':id_praga', $id_praga, PDO::PARAM_STR);
+        $stmtUpdate->bindParam(':localidade', $localidade, PDO::PARAM_STR);
+        $stmtUpdate->bindParam(':data_aparicao', $data_aparicao, PDO::PARAM_STR);
+        $stmtUpdate->bindParam(':observacoes', $observacoes, PDO::PARAM_STR);
+        $stmtUpdate->bindParam(':usuario_id', $usuarioID, PDO::PARAM_INT);
+        $stmtUpdate->bindParam(':pragaID', $pragaID, PDO::PARAM_INT);
+        $stmtUpdate->bindParam(':media_pragas_planta', $media_pragas_planta, $media_pragas_planta !== null ? PDO::PARAM_STR : PDO::PARAM_NULL);
+        $stmtUpdate->bindParam(':severidade', $severidade, $severidade !== null ? PDO::PARAM_STR : PDO::PARAM_NULL);
+        
+        if (!empty($imagemNome)) {
+            $stmtUpdate->bindParam(':imagem', $imagemNome, PDO::PARAM_STR);
+        }
+        
+        if ($stmtUpdate->execute()) {
+            // Não gerar alertas novamente - apenas atualizar o registro existente
+            // Os alertas já foram gerados no cadastro original
             
-            // Gerar alertas para outros usuários na mesma região
-            try {
-                $stmtUsuarios = $pdo->prepare("
-                    SELECT id FROM usuarios 
-                    WHERE (LOWER(localizacao) = LOWER(:localidade) 
-                    OR localizacao LIKE :localidadeLike)
-                    AND id != :usuarioID
-                ");
-                $localidadeLike = '%' . $localidade . '%';
-                $stmtUsuarios->bindParam(':localidade', $localidade, PDO::PARAM_STR);
-                $stmtUsuarios->bindParam(':localidadeLike', $localidadeLike, PDO::PARAM_STR);
-                $stmtUsuarios->bindParam(':usuarioID', $usuarioID, PDO::PARAM_INT);
-                $stmtUsuarios->execute();
-                $usuariosRegiao = $stmtUsuarios->fetchAll(PDO::FETCH_COLUMN);
-                
-                foreach ($usuariosRegiao as $usuarioDestinoID) {
-                    $stmtAlerta = $pdo->prepare("
-                        INSERT INTO alertas_pragas 
-                        (ID_Praga, ID_Usuario_Destino, ID_Usuario_Origem, Localidade, Nome_Praga)
-                        VALUES (:ID_Praga, :ID_Usuario_Destino, :ID_Usuario_Origem, :Localidade, :Nome_Praga)
-                    ");
-                    $stmtAlerta->bindParam(':ID_Praga', $novoPragaID, PDO::PARAM_INT);
-                    $stmtAlerta->bindParam(':ID_Usuario_Destino', $usuarioDestinoID, PDO::PARAM_INT);
-                    $stmtAlerta->bindParam(':ID_Usuario_Origem', $usuarioID, PDO::PARAM_INT);
-                    $stmtAlerta->bindParam(':Localidade', $localidade, PDO::PARAM_STR);
-                    $stmtAlerta->bindParam(':Nome_Praga', $nome, PDO::PARAM_STR);
-                    $stmtAlerta->execute();
-                }
-            } catch (PDOException $e) {
-                error_log("Erro ao gerar alertas: " . $e->getMessage());
-            }
-            
-            // Verificar se deve gerar relatório:
-            // 1. Se tiver 2 ou mais registros (primeira atualização = segunda vez)
-            // 2. OU se a média de pragas por planta foi preenchida (informação suficiente para relatório)
+            // Verificar se deve gerar relatório apenas se a média de pragas por planta foi preenchida
             $deveGerarRelatorio = false;
             
-            try {
-                $stmtCountApos = $pdo->prepare("SELECT COUNT(*) as total FROM Pragas_Surtos 
-                                                WHERE Nome = :nome AND ID_Usuario = :usuarioID 
-                                                AND Imagem_Not_Null IS NOT NULL 
-                                                AND Imagem_Not_Null != ''");
-                $stmtCountApos->bindParam(':nome', $nome, PDO::PARAM_STR);
-                $stmtCountApos->bindParam(':usuarioID', $usuarioID, PDO::PARAM_INT);
-                $stmtCountApos->execute();
-                $resultApos = $stmtCountApos->fetch(PDO::FETCH_ASSOC);
-                $totalRegistros = $resultApos['total'] ?? 0;
-                
-                // Se tiver 2 ou mais registros, gerar relatório
-                if ($totalRegistros >= 2) {
-                    $deveGerarRelatorio = true;
-                }
-            } catch (PDOException $e) {
-                error_log("Erro ao contar registros: " . $e->getMessage());
-            }
-            
-            // Se a média de pragas por planta foi preenchida, também gerar relatório
+            // Se a média de pragas por planta foi preenchida, gerar relatório
             if ($media_pragas_planta !== null && $media_pragas_planta > 0) {
                 $deveGerarRelatorio = true;
             }
             
             // Gerar relatório se necessário
             if ($deveGerarRelatorio) {
-                header("Location: ../dashboard/gerar_relatorio.php?id=" . $novoPragaID . "&auto=1");
+                header("Location: ../dashboard/gerar_relatorio.php?id=" . $pragaID . "&auto=1");
                 exit;
             }
             
@@ -210,7 +152,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
             }
             
             echo '<script type="text/javascript">
-                alert("Praga atualizada com sucesso! A partir da próxima atualização, o relatório será gerado automaticamente.");
+                alert("Praga atualizada com sucesso!");
                 window.location.href = "' . $dashboardUrl . '";
             </script>';
             exit;
@@ -237,19 +179,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
     <div class="h1">
         <h1>Atualizar Praga</h1>
         <p class="text-muted">Usuário: <?php echo htmlspecialchars($_SESSION['usuario'] ?? 'Não identificado'); ?></p>
-        <?php if ($gerarRelatorio): ?>
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle"></i> 
-                <strong>Atenção:</strong> Esta é a sua <?= ($numAtualizacoes + 1); ?>ª atualização desta praga. 
-                Após salvar, o relatório será gerado automaticamente!
-            </div>
-        <?php else: ?>
-            <div class="alert alert-warning">
-                <i class="bi bi-exclamation-triangle"></i> 
-                <strong>Primeira atualização:</strong> Esta é sua primeira atualização desta praga. 
-                A partir da próxima atualização (2ª), o relatório será gerado automaticamente.
-            </div>
-        <?php endif; ?>
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> 
+            <strong>Atualização de Praga:</strong> Ao atualizar, o registro existente será substituído pelas novas informações. 
+            <?php if ($temMediaPreenchida): ?>
+                <br><small>Se você preencher a "Média de Pragas por Planta", o relatório será gerado automaticamente após salvar.</small>
+            <?php else: ?>
+                <br><small>Preencha a "Média de Pragas por Planta" para gerar o relatório automaticamente.</small>
+            <?php endif; ?>
+        </div>
     </div>
     
     <form method="post" enctype="multipart/form-data">

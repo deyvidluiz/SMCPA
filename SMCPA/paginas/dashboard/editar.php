@@ -17,24 +17,17 @@ if (isset($_GET['id'])) {
         $stmt->execute();
 
         // Verifica se o usuário foi encontrado
-        $usuario = $stmt->fetch(PDO::FETCH_ASSOC); // Garante que os dados sejam retornados como um array associativo
-
-        // Exibe a estrutura de $usuario (para depuração)
-        // var_dump($usuario); // Verifica se os dados estão sendo retornados corretamente
-        // exit; // Isso vai parar o script e mostrar os dados de $usuario
+        $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($usuario) {
-            // Agora as chaves são em maiúsculas, como retornado pelo var_dump
-            $usuario_predefinido = $usuario['usuario'];  // Acessando 'usuario' com chave correta
-            $email_predefinido = $usuario['Email'];      // Acessando 'Email' com chave correta
-            $senha_predefinida = $usuario['senha'];      // Acessando 'senha' com chave correta
+            $usuario_predefinido = $usuario['usuario'];
+            $email_predefinido = $usuario['Email'];
         } else {
-            echo "<script>alert('Usuário não encontrado!'); window.location.href = 'dashboard.html';</script>";
+            echo "<script>alert('Usuário não encontrado!'); window.location.href = 'dashboard.php';</script>";
             exit;
         }
     } catch (PDOException $e) {
-        // Em caso de erro na consulta
-        echo "<script>alert('Erro ao buscar o usuário: " . $e->getMessage() . "'); window.location.href = '../../index.php';</script>";
+        echo "<script>alert('Erro ao buscar o usuário: " . $e->getMessage() . "'); window.location.href = 'dashboard.php';</script>";
         exit;
     }
 
@@ -67,8 +60,7 @@ if (isset($_GET['id'])) {
                 // Executa a consulta
                 $stmt->execute();
 
-                // Mensagem de sucesso
-                echo "<script>alert('Usuário editado com sucesso!'); window.location.href = 'dashboard.html';</script>";
+                echo "<script>alert('Usuário editado com sucesso!'); window.location.href = 'dashboard.php';</script>";
             } catch (PDOException $e) {
                 // Em caso de erro, exibe a mensagem de erro
                 echo "<script>alert('Erro ao editar o usuário: " . $e->getMessage() . "');</script>";
@@ -78,7 +70,7 @@ if (isset($_GET['id'])) {
         }
     }
 } else {
-    echo "<script>alert('Erro: ID não fornecido!'); window.location.href = 'dashboard.html';</script>";
+    echo "<script>alert('Erro: ID não fornecido!'); window.location.href = 'dashboard.php';</script>";
     exit;
 }
 ?>

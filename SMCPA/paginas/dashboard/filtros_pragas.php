@@ -124,59 +124,59 @@ $lista = $stmtPragas->fetchAll(PDO::FETCH_ASSOC);
     <!-- Sidebar -->
     <aside class="sidebar">
       <div class="logo">
-        <a href="#">
-          <img src="/SMCPA/imgs/logotrbf.png" alt="Logo">
+        <a href="<?= $isAdmin ? '/SMCPA/paginas/dashboard/dashboardadm.php' : '/SMCPA/paginas/dashboard/dashboard.php'; ?>">
+          <img src="/SMCPA/imgs/logotrbf.png" alt="SMCPA Logo">
         </a>
       </div>
 
       <nav class="menu-lateral">
         <ul>
           <li class="item-menu">
-            <a href="<?= $isAdmin ? 'dashboardadm.php' : 'dashboard.php'; ?>">
+            <a href="<?= $isAdmin ? '/SMCPA/paginas/dashboard/dashboardadm.php' : '/SMCPA/paginas/dashboard/dashboard.php'; ?>">
               <span class="icon"><i class="fa-solid fa-home"></i></span>
               <span class="txt-link">Home</span>
             </a>
           </li>
           <li class="item-menu">
-            <a href="../cadastro/cadpraga.php">
+            <a href="/SMCPA/paginas/cadastro/cadpraga.php">
               <span class="icon"><i class="bi bi-columns-gap"></i></span>
               <span class="txt-link">Cadastrar Pragas</span>
             </a>
           </li>
-          <li class="item-menu ativo">
-            <a href="filtros_pragas.php">
+          <li class="item-menu">
+            <a href="/SMCPA/paginas/cadastro/cadsurto.php">
+              <span class="icon"><i class="bi bi-exclamation-triangle"></i></span>
+              <span class="txt-link">Cadastrar Surtos</span>
+            </a>
+          </li>
+          <li class="item-menu">
+            <a href="/SMCPA/paginas/dashboard/filtros_pragas.php">
               <span class="icon"><i class="bi bi-funnel"></i></span>
               <span class="txt-link">Filtros de Pragas</span>
             </a>
           </li>
           <?php if ($isAdmin): ?>
           <li class="item-menu">
-            <a href="filtros_usuarios.php">
+            <a href="/SMCPA/paginas/dashboard/filtros_usuarios.php">
               <span class="icon"><i class="bi bi-people"></i></span>
               <span class="txt-link">Filtros de Usuários</span>
             </a>
           </li>
           <?php endif; ?>
           <li class="item-menu">
-            <a href="feedback.php">
+            <a href="/SMCPA/paginas/dashboard/feedback.php">
               <span class="icon"><i class="bi bi-chat-dots"></i></span>
               <span class="txt-link">Feedback</span>
             </a>
           </li>
           <li class="item-menu">
-            <a href="../inicial/inicial.html">
-              <span class="icon"><i class="bi bi-gear"></i></span>
-              <span class="txt-link">Configurações</span>
-            </a>
-          </li>
-          <li class="item-menu">
-            <a href="perfil.php">
+            <a href="/SMCPA/paginas/dashboard/perfil.php">
               <span class="icon"><i class="bi bi-person-lines-fill"></i></span>
               <span class="txt-link">Conta</span>
             </a>
           </li>
           <li class="item-menu">
-            <a href="../login/logout.php">
+            <a href="/SMCPA/paginas/login/logout.php">
               <span class="icon"><i class="bi bi-box-arrow-right"></i></span>
               <span class="txt-link">Sair</span>
             </a>

@@ -196,16 +196,18 @@ if (isset($_POST['cadastrar_admin']) && $isAdmin) {
 }
 
 // ================== DASHBOARD DE PRAGAS (FUNCIONALIDADES DO USUÁRIO) ==================
-// Buscar todas as pragas cadastradas (admins veem todas para gráficos e análises)
+// Buscar todas as pragas cadastradas pelo usuário logado (mostrar apenas as pragas deste usuário)
 $todasPragas = [];
 try {
-    $stmtPragas = $pdo->prepare("SELECT ID, Nome, Planta_Hospedeira, Localidade, Data_Aparicao, ID_Usuario 
-                                 FROM Pragas_Surtos 
-                                 ORDER BY Data_Aparicao DESC");
-    $stmtPragas->execute();
-    $todasPragas = $stmtPragas->fetchAll(PDO::FETCH_ASSOC);
+  $stmtPragas = $pdo->prepare("SELECT ID, Nome, Planta_Hospedeira, Localidade, Data_Aparicao, ID_Usuario 
+                 FROM Pragas_Surtos 
+                 WHERE ID_Usuario = :usuarioID
+                 ORDER BY Data_Aparicao DESC");
+  $stmtPragas->bindParam(':usuarioID', $usuarioID, PDO::PARAM_INT);
+  $stmtPragas->execute();
+  $todasPragas = $stmtPragas->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    $todasPragas = [];
+  $todasPragas = [];
 }
 
 // Buscar apenas as pragas cadastradas pelo admin logado (para gerar relatórios)
@@ -256,77 +258,115 @@ if ($pragaSelecionadaID) {
     }
 }
 
-// Buscar surtos dos últimos 30 dias da praga selecionada (de todas as pragas para admins, incluindo similares)
-$surtos30Dias = [];
+// Preparar dados para o gráfico do admin usando o histórico de atualizações (sem limite de 30 dias)
 $dadosGrafico = [];
 if ($pragaSelecionada) {
-    try {
-        $dataLimite = date('Y-m-d', strtotime('-30 days'));
-        
-        // Extrair palavras-chave do nome da praga para buscar pragas similares
-        $palavrasChave = extrairPalavrasChave($pragaSelecionada['Nome']);
-        $nomePragaExato = trim($pragaSelecionada['Nome']);
-        $nomePragaLike = '%' . $nomePragaExato . '%';
-        
-        // Preparar condições de busca de pragas similares
-        $condicoesPraga = [];
-        $params = [];
-        
-        $condicoesPraga[] = "LOWER(TRIM(Nome)) = LOWER(TRIM(:nomePraga))";
-        $params[':nomePraga'] = $nomePragaExato;
-        
-        $condicoesPraga[] = "LOWER(Nome) LIKE LOWER(:nomePragaLike)";
-        $params[':nomePragaLike'] = $nomePragaLike;
-        
-        // Busca por palavras-chave (pragas similares)
-        foreach ($palavrasChave as $index => $palavra) {
-            $paramName = ':palavraChave' . $index;
-            $condicoesPraga[] = "LOWER(Nome) LIKE " . $paramName;
-            $params[$paramName] = '%' . $palavra . '%';
-        }
-        
-        $sqlCondicaoPraga = "(" . implode(" OR ", $condicoesPraga) . ")";
-        
-        // Para admins, buscar surtos de TODAS as regiões (sem filtro de localidade)
-        $sql = "SELECT DATE(Data_Aparicao) as data_surto, COUNT(*) as total 
-                FROM Pragas_Surtos 
-                WHERE " . $sqlCondicaoPraga . "
-                AND Data_Aparicao >= :dataLimite
-                GROUP BY DATE(Data_Aparicao)
-                ORDER BY Data_Aparicao ASC";
-        
-        $stmtSurtos = $pdo->prepare($sql);
-        
-        foreach ($params as $paramName => $valor) {
-            $stmtSurtos->bindValue($paramName, $valor, PDO::PARAM_STR);
-        }
-        
-        $stmtSurtos->bindValue(':dataLimite', $dataLimite, PDO::PARAM_STR);
-        $stmtSurtos->execute();
-        $surtos30Dias = $stmtSurtos->fetchAll(PDO::FETCH_ASSOC);
-        
-        // Preparar dados para o gráfico (preencher dias sem surtos com 0)
-        $dataInicio = new DateTime($dataLimite);
-        $dataFim = new DateTime();
-        $intervalo = new DateInterval('P1D');
-        $periodo = new DatePeriod($dataInicio, $intervalo, $dataFim);
-        
-        $surtosPorData = [];
-        foreach ($surtos30Dias as $surto) {
-            $surtosPorData[$surto['data_surto']] = (int)$surto['total'];
-        }
-        
-        foreach ($periodo as $data) {
-            $dataStr = $data->format('Y-m-d');
-            $dadosGrafico[] = [
-                'Data_Aparicao' => $dataStr,
-                'total' => isset($surtosPorData[$dataStr]) ? $surtosPorData[$dataStr] : 0
-            ];
-        }
-    } catch (PDOException $e) {
-        $surtos30Dias = [];
-        $dadosGrafico = [];
+  try {
+    // Buscar atualizações históricas da praga (tabela historico_pragas)
+    $pragaID = $pragaSelecionada['ID'];
+    $sqlHist = "SELECT data_atualizacao AS Data_Aparicao, media_pragas_planta
+          FROM historico_pragas
+          WHERE ID_Praga = :pragaID
+          AND media_pragas_planta IS NOT NULL
+          AND media_pragas_planta > 0
+          ORDER BY data_atualizacao ASC";
+    $stmtHist = $pdo->prepare($sqlHist);
+    $stmtHist->bindParam(':pragaID', $pragaID, PDO::PARAM_INT);
+    $stmtHist->execute();
+    $historico = $stmtHist->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($historico as $registro) {
+      $dadosGrafico[] = [
+        'Data_Aparicao' => $registro['Data_Aparicao'],
+        'media_pragas' => round((float)$registro['media_pragas_planta'], 2)
+      ];
     }
+  } catch (PDOException $e) {
+    $dadosGrafico = [];
+    error_log('Erro ao buscar histórico para gráfico admin: ' . $e->getMessage());
+  }
+}
+
+// Função para gerar gráfico SVG em PHP puro (copiada do dashboard do usuário)
+function gerarGraficoSVG($dados, $pragaNome = 'Evolução da Infestação') {
+  if (empty($dados)) {
+    return '';
+  }
+  $largura = 720;
+  $altura = 300;
+  $margem = 40;
+  $areaLargura = $largura - (2 * $margem);
+  $areaAltura = $altura - (2 * $margem);
+  $scaleX = 0.9;
+  $valores = array_map(fn($d) => (float)($d['media_pragas'] ?? 0), $dados);
+  $minValor = min($valores);
+  $maxValor = max($valores);
+  if ($minValor == $maxValor) {
+    $minValor = $maxValor * 0.8;
+    $maxValor = $maxValor * 1.2;
+  }
+  $intervalo = $maxValor - $minValor;
+  $pontos = [];
+  for ($i = 0; $i < count($dados); $i++) {
+    $offsetX = ($areaLargura * (1 - $scaleX)) / 2;
+    $x = $margem + $offsetX + ($i / (count($dados) - 1 ?: 1)) * $areaLargura * $scaleX;
+    $y = $altura - $margem - ((($dados[$i]['media_pragas'] ?? 0) - $minValor) / ($intervalo ?: 1)) * $areaAltura;
+    $pontos[] = ['x' => $x, 'y' => $y, 'valor' => ($dados[$i]['media_pragas'] ?? 0), 'data' => $dados[$i]['Data_Aparicao']];
+  }
+  $svg = '<div style="width: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center;">';
+  $svg .= '<svg viewBox="0 0 ' . $largura . ' ' . $altura . '" preserveAspectRatio="xMidYMid meet" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg" style="max-width:100%; max-height:100%; border: 1px solid #ddd; border-radius: 4px; background: white; display: block;">';
+  $svg .= '<rect width="' . $largura . '" height="' . $altura . '" fill="white"/>';
+  $numLinhas = 5;
+  for ($i = 0; $i <= $numLinhas; $i++) {
+    $y = $margem + ($i / $numLinhas) * $areaAltura;
+    $svg .= '<line x1="' . $margem . '" y1="' . $y . '" x2="' . ($largura - $margem) . '" y2="' . $y . '" stroke="#e0e0e0" stroke-width="1"/>';
+    $valor = $maxValor - ($i / $numLinhas) * $intervalo;
+    $svg .= '<text x="' . ($margem - 10) . '" y="' . ($y + 5) . '" font-size="10" fill="#666" text-anchor="end">' . number_format($valor, 1, ',', '.') . '</text>';
+  }
+  $svg .= '<line x1="' . $margem . '" y1="' . ($altura - $margem) . '" x2="' . ($largura - $margem) . '" y2="' . ($altura - $margem) . '" stroke="#333" stroke-width="2"/>';
+  $svg .= '<line x1="' . $margem . '" y1="' . $margem . '" x2="' . $margem . '" y2="' . ($altura - $margem) . '" stroke="#333" stroke-width="2"/>';
+  if (count($pontos) > 1) {
+    $pathData = 'M ' . $pontos[0]['x'] . ' ' . $pontos[0]['y'];
+    for ($i = 1; $i < count($pontos); $i++) {
+      $pathData .= ' L ' . $pontos[$i]['x'] . ' ' . $pontos[$i]['y'];
+    }
+    $svg .= '<path d="' . $pathData . '" stroke="#dc3545" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
+  }
+  if (count($pontos) > 1) {
+    $pathArea = 'M ' . $pontos[0]['x'] . ' ' . $pontos[0]['y'];
+    for ($i = 1; $i < count($pontos); $i++) {
+      $pathArea .= ' L ' . $pontos[$i]['x'] . ' ' . $pontos[$i]['y'];
+    }
+    $pathArea .= ' L ' . $pontos[count($pontos)-1]['x'] . ' ' . ($altura - $margem);
+    $pathArea .= ' L ' . $pontos[0]['x'] . ' ' . ($altura - $margem) . ' Z';
+    $svg .= '<path d="' . $pathArea . '" fill="rgba(220, 53, 69, 0.2)"/>';
+  }
+  for ($i = 0; $i < count($pontos); $i++) {
+    $ponto = $pontos[$i];
+    $cor = '#dc3545';
+    if ($i > 0) {
+      $valAnterior = $pontos[$i-1]['valor'];
+      $valAtual = $ponto['valor'];
+      if ($valAtual < $valAnterior) {
+        $cor = '#28a745';
+      } elseif ($valAtual > $valAnterior) {
+        $cor = '#dc3545';
+      } else {
+        $cor = '#ffc107';
+      }
+    }
+    $svg .= '<circle cx="' . $ponto['x'] . '" cy="' . $ponto['y'] . '" r="4" fill="' . $cor . '" stroke="white" stroke-width="2"/>';
+    $svg .= '<line x1="' . $ponto['x'] . '" y1="' . $ponto['y'] . '" x2="' . $ponto['x'] . '" y2="' . ($altura - $margem) . '" stroke="#ddd" stroke-width="1" stroke-dasharray="2,2"/>';
+    $data = DateTime::createFromFormat('Y-m-d H:i:s', $ponto['data']);
+    $dataFormatada = $data ? $data->format('d/m/y H:i') : $ponto['data'];
+    $svg .= '<text x="' . $ponto['x'] . '" y="' . ($altura - $margem + 18) . '" font-size="9" fill="#666" text-anchor="middle">' . htmlspecialchars($dataFormatada) . '</text>';
+    $svg .= '<title>Data: ' . htmlspecialchars($ponto['data']) . ' | Média: ' . number_format($ponto['valor'], 2, ',', '.') . ' pragas/planta</title>';
+  }
+  $svg .= '<text x="' . ($largura / 2) . '" y="22" font-size="13" font-weight="bold" fill="#333" text-anchor="middle">' . htmlspecialchars($pragaNome) . '</text>';
+  $svg .= '<text x="' . ($margem - 30) . '" y="' . ($margem / 2) . '" font-size="11" fill="#666" text-anchor="middle" transform="rotate(-90 ' . ($margem - 30) . ' ' . ($margem / 2) . ')">Média de Pragas/Planta</text>';
+  $svg .= '<text x="' . ($largura / 2) . '" y="' . ($altura - 5) . '" font-size="11" fill="#666" text-anchor="middle">Data e Hora das Atualizações</text>';
+  $svg .= '</svg></div>';
+  return $svg;
 }
 
 // Função para gerar recomendações baseadas na praga
@@ -478,21 +518,8 @@ if ($acao === 'recomendacoes' && $pragaSelecionada) {
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  <link rel="stylesheet" href="/SMCPA/css/dashboardadm.css">
   <link rel="stylesheet" href="/SMCPA/css/dashboard.css">
   <title>Dashboard Admin - SMCPA</title>
-  <style>
-    /* Ajustes para garantir que o content tenha scroll quando necessário */
-    .content {
-      overflow-y: auto;
-      align-items: flex-start !important;
-      justify-content: flex-start !important;
-    }
-    .dashboard-grid {
-      width: 100%;
-      max-width: 100%;
-    }
-  </style>
 </head>
 <body>
   <div class="dashboard-container">
@@ -743,9 +770,16 @@ if ($acao === 'recomendacoes' && $pragaSelecionada) {
                 </select>
               <?php endif; ?>
             </div>
-            <div id="conteudo-grafico" style="height: 250px;">
-              <?php if ($pragaSelecionada): ?>
-                <canvas id="grafico-surtos" style="max-height: 250px;"></canvas>
+            <div id="conteudo-grafico" style="overflow: hidden;">
+              <?php if ($pragaSelecionada && !empty($dadosGrafico)): ?>
+                <?php
+                  $pragaNomeParaGrafico = $pragaSelecionada['Nome'] ?? 'Evolução da Praga';
+                  echo gerarGraficoSVG($dadosGrafico, $pragaNomeParaGrafico);
+                ?>
+              <?php elseif ($pragaSelecionada): ?>
+                <div class="alert alert-info">
+                  <i class="bi bi-info-circle"></i> Nenhum dado disponível para gerar o gráfico desta praga.
+                </div>
               <?php else: ?>
                 <p class="text-muted">Selecione uma praga para ver o gráfico de surtos.</p>
               <?php endif; ?>
@@ -818,7 +852,6 @@ if ($acao === 'recomendacoes' && $pragaSelecionada) {
 
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="/SMCPA/js/menu.js"></script>
   <script>
     // Dados das pragas para JavaScript
@@ -874,109 +907,7 @@ if ($acao === 'recomendacoes' && $pragaSelecionada) {
       window.location.href = `dashboardadm.php?praga_id=${pragaID}`;
     }
     
-    <?php if ($pragaSelecionada && !empty($dadosGrafico)): ?>
-    // Preparar dados do gráfico
-    const surtosData = <?= json_encode($dadosGrafico); ?>;
-    const pragaNome = <?= json_encode($pragaSelecionada['Nome']); ?>;
-    
-    // Criar labels (datas) e dados (quantidade de surtos)
-    const labels = surtosData.map(item => {
-      const date = new Date(item.Data_Aparicao);
-      return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-    });
-    
-    const dados = surtosData.map(item => parseInt(item.total));
-    
-    // Dados do gráfico de linha
-    const data = {
-      labels: labels,
-      datasets: [{
-        label: 'Surtos de ' + pragaNome,
-        data: dados,
-        borderColor: '#dc3545',
-        backgroundColor: 'rgba(220, 53, 69, 0.2)',
-        fill: true,
-        tension: 0.4,
-        pointRadius: 5,
-        pointHoverRadius: 7,
-        pointBackgroundColor: '#dc3545',
-        pointBorderColor: '#fff',
-        pointBorderWidth: 2
-      }]
-    };
-
-    const options = {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { 
-          position: 'top',
-          display: true
-        },
-        tooltip: { 
-          enabled: true,
-          callbacks: {
-            label: function(context) {
-              return 'Surtos: ' + context.parsed.y;
-            }
-          }
-        },
-        title: {
-          display: false
-        }
-      },
-      scales: {
-        y: { 
-          beginAtZero: true,
-          ticks: {
-            stepSize: 1
-          },
-          title: {
-            display: true,
-            text: 'Quantidade de Surtos'
-          }
-        },
-        x: {
-          title: {
-            display: true,
-            text: 'Data'
-          }
-        }
-      }
-    };
-
-    const ctxSurtos = document.getElementById('grafico-surtos');
-    if (ctxSurtos) {
-      const graficoSurtos = new Chart(ctxSurtos, {
-        type: 'line',
-        data: data,
-        options: options
-      });
-    }
-    <?php elseif ($pragaSelecionada): ?>
-    // Se não houver dados, criar gráfico vazio
-    const ctxSurtosVazio = document.getElementById('grafico-surtos');
-    if (ctxSurtosVazio) {
-      const graficoSurtosVazio = new Chart(ctxSurtosVazio, {
-        type: 'line',
-        data: {
-          labels: [],
-          datasets: [{
-            label: 'Nenhum surto registrado',
-            data: [],
-            borderColor: '#6c757d',
-            backgroundColor: 'rgba(108, 117, 125, 0.2)'
-          }]
-        },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: { position: 'top' }
-          }
-        }
-      });
-    }
-    <?php endif; ?>
+    // Chart handled server-side (SVG). No Chart.js initialization here for admin.
   </script>
 </body>
 </html>

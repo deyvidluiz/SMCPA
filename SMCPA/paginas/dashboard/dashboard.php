@@ -247,17 +247,15 @@ try {
     if ($pragaSelecionadaGrafico) {
         $nomePragaGrafico = $pragaSelecionadaGrafico['Nome'];
         $sql = "SELECT Data_Aparicao, 
-                       media_pragas_planta,
-                       severidade
-                FROM Pragas_Surtos 
-                WHERE ID_Usuario = :usuarioID 
-                AND Nome = :nomePraga
-                AND Imagem_Not_Null IS NOT NULL 
-                AND Imagem_Not_Null != ''
-                AND media_pragas_planta IS NOT NULL
-                AND media_pragas_planta > 0
-                AND Data_Aparicao >= :dataLimite
-                ORDER BY Data_Aparicao ASC";
+                 media_pragas_planta,
+                 severidade
+          FROM Pragas_Surtos 
+          WHERE ID_Usuario = :usuarioID 
+          AND Nome = :nomePraga
+          AND media_pragas_planta IS NOT NULL
+          AND media_pragas_planta > 0
+          AND Data_Aparicao >= :dataLimite
+          ORDER BY Data_Aparicao ASC";
         
         $stmtGrafico = $pdo->prepare($sql);
         $stmtGrafico->bindParam(':usuarioID', $usuarioID, PDO::PARAM_INT);
@@ -279,17 +277,15 @@ try {
     } else {
         // Se não houver praga selecionada, buscar todas as pragas do usuário
         $sql = "SELECT Data_Aparicao, 
-                       media_pragas_planta,
-                       severidade,
-                       Nome
-                FROM Pragas_Surtos 
-                WHERE ID_Usuario = :usuarioID 
-                AND Imagem_Not_Null IS NOT NULL 
-                AND Imagem_Not_Null != ''
-                AND media_pragas_planta IS NOT NULL
-                AND media_pragas_planta > 0
-                AND Data_Aparicao >= :dataLimite
-                ORDER BY Data_Aparicao ASC";
+                 media_pragas_planta,
+                 severidade,
+                 Nome
+          FROM Pragas_Surtos 
+          WHERE ID_Usuario = :usuarioID 
+          AND media_pragas_planta IS NOT NULL
+          AND media_pragas_planta > 0
+          AND Data_Aparicao >= :dataLimite
+          ORDER BY Data_Aparicao ASC";
         
         $stmtGrafico = $pdo->prepare($sql);
         $stmtGrafico->bindParam(':usuarioID', $usuarioID, PDO::PARAM_INT);

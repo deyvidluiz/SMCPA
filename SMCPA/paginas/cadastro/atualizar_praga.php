@@ -133,7 +133,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
             
             // Gerar relatório se necessário
             if ($deveGerarRelatorio) {
-                header("Location: ../dashboard/gerar_relatorio.php?id=" . $pragaID . "&auto=1");
+                // Usar caminho absoluto para evitar problemas com caminhos relativos
+                header("Location: /SMCPA/paginas/dashboard/gerar_relatorio.php?id=" . $pragaID . "&auto=1");
                 exit;
             }
             

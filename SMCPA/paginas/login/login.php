@@ -110,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
       
       <button type="submit">Entrar</button>
       <div class="h1"><a href="../esqsenha/altsenha.php">Esqueceu a senha?</a></div>
-      <button type="button" onclick="window.location.href='../cadastro/cadastro.php'" style="margin-top: 10px; background: #6c757d; color: #fff; border: none; border-radius: 6px; cursor: pointer; width: 100%; padding: 10px; font-weight: 500;" onmouseover="this.style.background='#5a6268'" onmouseout="this.style.background='#6c757d'">Ir para o Cadastro</button>
+      <button type="button" onclick="window.location.href='/SMCPA/paginas/cadastro/cadastro.php'" style="margin-top: 10px; background: #6c757d; color: #fff; border: none; border-radius: 6px; cursor: pointer; width: 100%; padding: 10px; font-weight: 500;" onmouseover="this.style.background='#5a6268'" onmouseout="this.style.background='#6c757d'">Ir para o Cadastro</button>
     </form>
   </div>
 </body>

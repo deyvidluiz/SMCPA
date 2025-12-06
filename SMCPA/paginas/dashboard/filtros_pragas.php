@@ -42,11 +42,49 @@ if (isset($_SESSION['is_admin'])) {
         $isAdmin = ($userAdmin && isset($userAdmin['is_admin']) && $userAdmin['is_admin'] == 1);
         $_SESSION['is_admin'] = $isAdmin ? 1 : 0;
     } catch (PDOException $e) {
-        $isAdmin = false;
+      $isAdmin = false;
     }
+
 }
 
-// Buscar imagem do perfil do usuário
+  // Buscar imagem do perfil do usuário
+// Processar exclusão de praga (somente administradores)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_praga') {
+  if (!$isAdmin) {
+    header('Location: filtros_pragas.php?erro=acesso_negado');
+    exit;
+  }
+
+  $delId = isset($_POST['praga_id']) ? intval($_POST['praga_id']) : 0;
+  if ($delId > 0) {
+    try {
+      // Buscar todas as entradas relacionadas: o registro original e possíveis atualizações (ID_Praga_Original)
+      $stmtAll = $pdo->prepare("SELECT ID, Imagem_Not_Null FROM Pragas_Surtos WHERE ID = :id OR ID_Praga_Original = :id");
+      $stmtAll->bindParam(':id', $delId, PDO::PARAM_INT);
+      $stmtAll->execute();
+      $rows = $stmtAll->fetchAll(PDO::FETCH_ASSOC);
+
+      // Remover arquivos de imagem associados
+      foreach ($rows as $r) {
+        if (!empty($r['Imagem_Not_Null'])) {
+          $filePath = $_SERVER['DOCUMENT_ROOT'].'/uploads/pragas/'. $r['Imagem_Not_Null'];
+          if (file_exists($filePath)) {@unlink($filePath);} 
+        }
+      }
+
+      // Excluir todos os registros relacionados (original + histórico)
+      $stmtDel = $pdo->prepare("DELETE FROM Pragas_Surtos WHERE ID = :id OR ID_Praga_Original = :id");
+      $stmtDel->bindParam(':id', $delId, PDO::PARAM_INT);
+      $stmtDel->execute();
+
+      header('Location: filtros_pragas.php?msg=praga_excluida');
+      exit;
+    } catch (PDOException $e) {
+      header('Location: filtros_pragas.php?erro=erro_excluir');
+      exit;
+    }
+  }
+}
 $imagemPerfil = null;
 if ($usuarioID) {
     try {
@@ -264,6 +302,15 @@ $lista = $stmtPragas->fetchAll(PDO::FETCH_ASSOC);
                          class="btn btn-outline-secondary btn-sm">
                         <i class="bi bi-eye"></i> Ver Detalhes
                       </a>
+                      <?php if ($isAdmin): ?>
+                      <form method="post" onsubmit="return confirm('Confirma a exclusão desta praga? Esta ação não pode ser desfeita.');">
+                        <input type="hidden" name="action" value="delete_praga">
+                        <input type="hidden" name="praga_id" value="<?= $praga['ID']; ?>">
+                        <button type="submit" class="btn btn-danger btn-sm mt-2">
+                          <i class="bi bi-trash"></i> Excluir Praga
+                        </button>
+                      </form>
+                      <?php endif; ?>
                     </div>
                   </div>
                 </div>
@@ -407,5 +454,3 @@ $lista = $stmtPragas->fetchAll(PDO::FETCH_ASSOC);
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
-
-              

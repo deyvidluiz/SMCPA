@@ -239,61 +239,154 @@ if ($pragaGraficoID) {
     }
 }
 
-try {
-    $dataLimite = date('Y-m-d', strtotime('-30 days'));
+// Função para gerar gráfico SVG em PHP puro (sem dependências externas)
+function gerarGraficoSVG($dados, $pragaNome = 'Evolução da Infestação') {
+    if (empty($dados)) {
+        return '';
+    }
     
-    // Buscar dados de infestação (média de pragas por planta) da praga selecionada
-    // Mostrar cada atualização individualmente para ver evolução/queda
-    if ($pragaSelecionadaGrafico) {
-        $nomePragaGrafico = $pragaSelecionadaGrafico['Nome'];
-        $sql = "SELECT Data_Aparicao, 
-                 media_pragas_planta,
-                 severidade
-          FROM Pragas_Surtos 
-          WHERE ID_Usuario = :usuarioID 
-          AND Nome = :nomePraga
-          AND media_pragas_planta IS NOT NULL
-          AND media_pragas_planta > 0
-          AND Data_Aparicao >= :dataLimite
-          ORDER BY Data_Aparicao ASC";
+    // Dimensões do gráfico (ajustadas para evitar barra de rolagem)
+    $largura = 720;
+    $altura = 300;
+    $margem = 40;
+    $areaLargura = $largura - (2 * $margem);
+    $areaAltura = $altura - (2 * $margem);
+    // Compressão horizontal para reduzir espaçamento entre pontos
+    $scaleX = 0.9;
+    
+    // Extrair valores mínimo e máximo
+    $valores = array_map(fn($d) => (float)$d['media_pragas'], $dados);
+    $minValor = min($valores);
+    $maxValor = max($valores);
+    
+    // Se todos os valores são iguais, ajustar a escala
+    if ($minValor == $maxValor) {
+        $minValor = $maxValor * 0.8;
+        $maxValor = $maxValor * 1.2;
+    }
+    
+    $intervalo = $maxValor - $minValor;
+    
+    // Calcular posições dos pontos
+    $pontos = [];
+    for ($i = 0; $i < count($dados); $i++) {
+      $offsetX = ($areaLargura * (1 - $scaleX)) / 2;
+      $x = $margem + $offsetX + ($i / (count($dados) - 1 ?: 1)) * $areaLargura * $scaleX;
+      $y = $altura - $margem - (($dados[$i]['media_pragas'] - $minValor) / ($intervalo ?: 1)) * $areaAltura;
+      $pontos[] = ['x' => $x, 'y' => $y, 'valor' => $dados[$i]['media_pragas'], 'data' => $dados[$i]['Data_Aparicao']];
+    }
+    
+    // Começar SVG (responsivo e imóvel - sem overflow)
+    $svg = '<div style="width: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center;">';
+    $svg .= '<svg viewBox="0 0 ' . $largura . ' ' . $altura . '" preserveAspectRatio="xMidYMid meet" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg" style="max-width:100%; max-height:100%; border: 1px solid #ddd; border-radius: 4px; background: white; display: block;">';
+    
+    // Fundo
+    $svg .= '<rect width="' . $largura . '" height="' . $altura . '" fill="white"/>';
+    
+    // Grade de fundo (linhas horizontais)
+    $numLinhas = 5;
+    for ($i = 0; $i <= $numLinhas; $i++) {
+        $y = $margem + ($i / $numLinhas) * $areaAltura;
+        $svg .= '<line x1="' . $margem . '" y1="' . $y . '" x2="' . ($largura - $margem) . '" y2="' . $y . '" stroke="#e0e0e0" stroke-width="1"/>';
         
-        $stmtGrafico = $pdo->prepare($sql);
-        $stmtGrafico->bindParam(':usuarioID', $usuarioID, PDO::PARAM_INT);
-        $stmtGrafico->bindParam(':nomePraga', $nomePragaGrafico, PDO::PARAM_STR);
-        $stmtGrafico->bindValue(':dataLimite', $dataLimite, PDO::PARAM_STR);
-        $stmtGrafico->execute();
-        $dadosInfestacao = $stmtGrafico->fetchAll(PDO::FETCH_ASSOC);
+        // Valores da escala (Y)
+        $valor = $maxValor - ($i / $numLinhas) * $intervalo;
+        $svg .= '<text x="' . ($margem - 10) . '" y="' . ($y + 5) . '" font-size="10" fill="#666" text-anchor="end">' . number_format($valor, 1, ',', '.') . '</text>';
+    }
+    
+    // Eixo X (horizontal)
+    $svg .= '<line x1="' . $margem . '" y1="' . ($altura - $margem) . '" x2="' . ($largura - $margem) . '" y2="' . ($altura - $margem) . '" stroke="#333" stroke-width="2"/>';
+    
+    // Eixo Y (vertical)
+    $svg .= '<line x1="' . $margem . '" y1="' . $margem . '" x2="' . $margem . '" y2="' . ($altura - $margem) . '" stroke="#333" stroke-width="2"/>';
+    
+    // Desenhar linha de dados
+    if (count($pontos) > 1) {
+        $pathData = 'M ' . $pontos[0]['x'] . ' ' . $pontos[0]['y'];
+        for ($i = 1; $i < count($pontos); $i++) {
+            $pathData .= ' L ' . $pontos[$i]['x'] . ' ' . $pontos[$i]['y'];
+        }
+        $svg .= '<path d="' . $pathData . '" stroke="#dc3545" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
+    }
+    
+    // Desenhar área preenchida (gradiente simulado)
+    if (count($pontos) > 1) {
+        $pathArea = 'M ' . $pontos[0]['x'] . ' ' . $pontos[0]['y'];
+        for ($i = 1; $i < count($pontos); $i++) {
+            $pathArea .= ' L ' . $pontos[$i]['x'] . ' ' . $pontos[$i]['y'];
+        }
+        $pathArea .= ' L ' . $pontos[count($pontos)-1]['x'] . ' ' . ($altura - $margem);
+        $pathArea .= ' L ' . $pontos[0]['x'] . ' ' . ($altura - $margem) . ' Z';
+        $svg .= '<path d="' . $pathArea . '" fill="rgba(220, 53, 69, 0.2)"/>';
+    }
+    
+    // Desenhar pontos e labels
+    for ($i = 0; $i < count($pontos); $i++) {
+        $ponto = $pontos[$i];
         
-        // Criar um ponto no gráfico para cada atualização individual
-        foreach ($dadosInfestacao as $registro) {
-            if ($registro['media_pragas_planta'] !== null && $registro['media_pragas_planta'] > 0) {
-                $dadosGrafico[] = [
-                    'Data_Aparicao' => $registro['Data_Aparicao'],
-                    'media_pragas' => round((float)$registro['media_pragas_planta'], 2)
-                ];
+        // Determinar cor do ponto (baseado em mudança)
+        $cor = '#dc3545'; // Vermelho padrão
+        if ($i > 0) {
+            $valAnterior = $pontos[$i-1]['valor'];
+            $valAtual = $ponto['valor'];
+            if ($valAtual < $valAnterior) {
+                $cor = '#28a745'; // Verde para queda
+            } elseif ($valAtual > $valAnterior) {
+                $cor = '#dc3545'; // Vermelho para aumento
+            } else {
+                $cor = '#ffc107'; // Amarelo para sem mudança
             }
         }
         
-    } else {
-        // Se não houver praga selecionada, buscar todas as pragas do usuário
-        $sql = "SELECT Data_Aparicao, 
+        // Círculo do ponto
+        $svg .= '<circle cx="' . $ponto['x'] . '" cy="' . $ponto['y'] . '" r="4" fill="' . $cor . '" stroke="white" stroke-width="2"/>';
+        
+        // Linha vertical até o eixo X
+        $svg .= '<line x1="' . $ponto['x'] . '" y1="' . $ponto['y'] . '" x2="' . $ponto['x'] . '" y2="' . ($altura - $margem) . '" stroke="#ddd" stroke-width="1" stroke-dasharray="2,2"/>';
+        
+        // Label com data (X)
+        $data = DateTime::createFromFormat('Y-m-d H:i:s', $ponto['data']);
+        $dataFormatada = $data ? $data->format('d/m/y H:i') : $ponto['data'];
+        $svg .= '<text x="' . $ponto['x'] . '" y="' . ($altura - $margem + 18) . '" font-size="9" fill="#666" text-anchor="middle">' . htmlspecialchars($dataFormatada) . '</text>';
+        
+        // Tooltip com valor (ao passar mouse)
+        $svg .= '<title>Data: ' . htmlspecialchars($ponto['data']) . ' | Média: ' . number_format($ponto['valor'], 2, ',', '.') . ' pragas/planta</title>';
+    }
+    
+    // Título
+    $svg .= '<text x="' . ($largura / 2) . '" y="22" font-size="13" font-weight="bold" fill="#333" text-anchor="middle">' . htmlspecialchars($pragaNome) . '</text>';
+    
+    // Labels dos eixos
+    $svg .= '<text x="' . ($margem - 30) . '" y="' . ($margem / 2) . '" font-size="11" fill="#666" text-anchor="middle" transform="rotate(-90 ' . ($margem - 30) . ' ' . ($margem / 2) . ')">Média de Pragas/Planta</text>';
+    $svg .= '<text x="' . ($largura / 2) . '" y="' . ($altura - 5) . '" font-size="11" fill="#666" text-anchor="middle">Data e Hora das Atualizações</text>';
+    
+    $svg .= '</svg></div>';
+    
+    return $svg;
+}
+
+try {
+    // Buscar dados de infestação (média de pragas por planta) da praga selecionada
+    // SEM filtro de datas - mostra TODAS as atualizações do histórico
+    if ($pragaSelecionadaGrafico) {
+        $nomePragaGrafico = $pragaSelecionadaGrafico['Nome'];
+        $pragaIDGrafico = $pragaSelecionadaGrafico['ID'];
+        // Buscar do histórico de atualizações (tabela separada)
+        $sql = "SELECT data_atualizacao as Data_Aparicao, 
                  media_pragas_planta,
-                 severidade,
-                 Nome
-          FROM Pragas_Surtos 
-          WHERE ID_Usuario = :usuarioID 
+                 severidade
+          FROM historico_pragas 
+          WHERE ID_Praga = :pragaID
           AND media_pragas_planta IS NOT NULL
           AND media_pragas_planta > 0
-          AND Data_Aparicao >= :dataLimite
-          ORDER BY Data_Aparicao ASC";
+          ORDER BY data_atualizacao ASC";
         
         $stmtGrafico = $pdo->prepare($sql);
-        $stmtGrafico->bindParam(':usuarioID', $usuarioID, PDO::PARAM_INT);
-        $stmtGrafico->bindValue(':dataLimite', $dataLimite, PDO::PARAM_STR);
+        $stmtGrafico->bindParam(':pragaID', $pragaIDGrafico, PDO::PARAM_INT);
         $stmtGrafico->execute();
         $dadosInfestacao = $stmtGrafico->fetchAll(PDO::FETCH_ASSOC);
         
-        // Criar um ponto no gráfico para cada atualização individual
+        // Criar array de dados para o gráfico
         foreach ($dadosInfestacao as $registro) {
             if ($registro['media_pragas_planta'] !== null && $registro['media_pragas_planta'] > 0) {
                 $dadosGrafico[] = [
@@ -937,9 +1030,9 @@ if ($acao === 'dados_grafico') {
           </div>
 
           <!-- Bloco Gráfico de Infestação -->
-          <div class="dashboard-item card-grafico" id="grafico-vendas" style="grid-column: span 2; max-height: 350px;">
+          <div class="dashboard-item card-grafico" id="grafico-vendas" style="grid-column: span 2; max-height: 450px; overflow-y: auto;">
             <div class="d-flex justify-content-between align-items-center mb-3">
-              <h5 class="mb-0"><i class="bi bi-graph-up text-danger"></i> Evolução da Infestação - Média de Pragas por Planta (Últimos 30 dias)</h5>
+              <h5 class="mb-0"><i class="bi bi-graph-up text-danger"></i> Evolução da Infestação - Média de Pragas por Planta</h5>
               <?php if (!empty($pragasComImagens)): ?>
                 <select class="form-select" id="select-praga-grafico" style="width: auto; min-width: 200px; font-size: 0.9rem;" onchange="atualizarGrafico(this.value)">
                   <option value="">Todas as pragas</option>
@@ -951,13 +1044,16 @@ if ($acao === 'dados_grafico') {
                 </select>
               <?php endif; ?>
             </div>
-            <div id="conteudo-grafico" style="height: 250px;">
+            <div id="conteudo-grafico" style="overflow-x: auto;">
               <?php if (!empty($dadosGrafico)): ?>
-                <canvas id="grafico-surtos" style="max-height: 250px;"></canvas>
+                <?php 
+                  $pragaNomeParaGrafico = $pragaSelecionadaGrafico ? $pragaSelecionadaGrafico['Nome'] : 'Evolução de Todas as Pragas';
+                  echo gerarGraficoSVG($dadosGrafico, $pragaNomeParaGrafico);
+                ?>
               <?php elseif (!empty($pragasComImagens)): ?>
                 <div class="alert alert-warning" style="font-size: 0.9rem;">
                   <i class="bi bi-exclamation-triangle"></i> 
-                  <strong>Nenhum dado de infestação registrado</strong> nos últimos 30 dias para a praga selecionada.
+                  <strong>Nenhum dado de infestação registrado</strong> para a praga selecionada.
                   <br><small>Para gerar o gráfico, cadastre ou atualize suas pragas informando a média de pragas por planta.</small>
                 </div>
               <?php else: ?>
@@ -971,8 +1067,8 @@ if ($acao === 'dados_grafico') {
             <?php if (!empty($pragasComImagens)): ?>
               <div class="mt-2">
                 <small class="text-muted">
-                  <i class="bi bi-info-circle"></i> O gráfico mostra a evolução da infestação através da média de pragas por planta ao longo do tempo. 
-                  Atualize seus cadastros regularmente informando a média de pragas por planta para manter o gráfico atualizado.
+                  <i class="bi bi-info-circle"></i> O gráfico mostra todas as atualizações das pragas com a média de pragas por planta registrada. 
+                  Cores: <span style="color: #28a745;">●</span> Verde = Queda, <span style="color: #dc3545;">●</span> Vermelho = Aumento, <span style="color: #ffc107;">●</span> Amarelo = Sem mudança.
                 </small>
               </div>
             <?php endif; ?>
@@ -981,7 +1077,6 @@ if ($acao === 'dados_grafico') {
       </section>
     </main>
   </div>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/SMCPA/js/menu.js"></script>
   <script>
@@ -1013,7 +1108,8 @@ if ($acao === 'dados_grafico') {
   <script>
     // Dados das pragas para JavaScript
     const todasPragas = <?= json_encode($todasPragas); ?>;
-    const localidadeUsuario = <?= json_encode($localidadeUsuario); ?>;
+    
+    // Variável global para controle do gráfico
     
     // Função para atualizar recomendações via AJAX
     function atualizarRecomendacoes(pragaID) {
@@ -1034,201 +1130,10 @@ if ($acao === 'dados_grafico') {
         .catch(error => console.error('Erro:', error));
     }
     
-    // Variável global para instância do gráfico
-    let graficoSurtosInstance = null;
-    
-    // Função para criar o gráfico
-    function criarGrafico(dadosGraficoArray, pragaNome) {
-        // Formatar labels com data e hora quando necessário
-        const labels = dadosGraficoArray.map((item, index) => {
-            const date = new Date(item.Data_Aparicao);
-            // Se houver múltiplas atualizações no mesmo dia, mostrar hora também
-            const mesmoDia = index > 0 && 
-                new Date(dadosGraficoArray[index-1].Data_Aparicao).toDateString() === date.toDateString();
-            
-            if (mesmoDia || dadosGraficoArray.length > 0 && 
-                dadosGraficoArray.filter(d => {
-                    const dDate = new Date(d.Data_Aparicao);
-                    return dDate.toDateString() === date.toDateString();
-                }).length > 1) {
-                return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' +
-                       date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-            } else {
-                return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-            }
-        });
-        
-        const dados = dadosGraficoArray.map(item => parseFloat(item.media_pragas) || 0);
-        
-        // Calcular variação para cada ponto (evolução)
-        const variacoes = dados.map((valor, index) => {
-            if (index === 0) return null;
-            const anterior = dados[index - 1];
-            const variacao = valor - anterior;
-            const percentual = anterior > 0 ? ((variacao / anterior) * 100).toFixed(1) : 0;
-            return { variacao: variacao.toFixed(2), percentual: percentual };
-        });
-        
-        // Cores dos pontos baseadas na evolução
-        const coresPontos = dados.map((valor, index) => {
-            if (index === 0) return '#dc3545'; // Vermelho para primeiro ponto
-            const anterior = dados[index - 1];
-            if (valor > anterior) return '#dc3545'; // Vermelho para aumento
-            if (valor < anterior) return '#28a745'; // Verde para queda
-            return '#ffc107'; // Amarelo para sem mudança
-        });
-        
-        // Dados do gráfico de linha
-        const data = {
-            labels: labels,
-            datasets: [{
-                label: 'Evolução da Infestação - ' + pragaNome,
-                data: dados,
-                borderColor: '#dc3545',
-                backgroundColor: 'rgba(220, 53, 69, 0.2)',
-                fill: true,
-                tension: 0.3,
-                pointRadius: 6,
-                pointHoverRadius: 8,
-                pointBackgroundColor: coresPontos,
-                pointBorderColor: '#fff',
-                pointBorderWidth: 2
-            }]
-        };
-
-        const options = {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: {
-                intersect: false,
-                mode: 'index'
-            },
-            plugins: {
-                legend: { 
-                    position: 'top',
-                    display: true
-                },
-                tooltip: { 
-                    enabled: true,
-                    callbacks: {
-                        title: function(context) {
-                            const index = context[0].dataIndex;
-                            const date = new Date(dadosGraficoArray[index].Data_Aparicao);
-                            return date.toLocaleDateString('pt-BR', { 
-                                day: '2-digit', 
-                                month: 'long', 
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                            });
-                        },
-                        label: function(context) {
-                            const index = context.dataIndex;
-                            const valor = context.parsed.y;
-                            let texto = 'Média: ' + valor.toFixed(2) + ' pragas/planta';
-                            
-                            // Adicionar informação de evolução
-                            if (index > 0) {
-                                const variacao = variacoes[index];
-                                if (variacao) {
-                                    const variacaoNum = parseFloat(variacao.variacao);
-                                    const percentual = variacao.percentual;
-                                    if (variacaoNum > 0) {
-                                        texto += '\n↗ Aumento: +' + Math.abs(variacaoNum).toFixed(2) + ' (' + percentual + '%)';
-                                    } else if (variacaoNum < 0) {
-                                        texto += '\n↘ Queda: ' + variacaoNum.toFixed(2) + ' (' + percentual + '%)';
-                                    } else {
-                                        texto += '\n→ Sem mudança';
-                                    }
-                                }
-                            }
-                            
-                            return texto;
-                        }
-                    }
-                },
-                title: {
-                    display: false
-                }
-            },
-            scales: {
-                y: { 
-                    beginAtZero: true,
-                    ticks: {
-                        stepSize: 0.5,
-                        callback: function(value) {
-                            return value.toFixed(1);
-                        }
-                    },
-                    title: {
-                        display: true,
-                        text: 'Média de Pragas por Planta'
-                    }
-                },
-                x: {
-                    title: {
-                        display: true,
-                        text: 'Data e Hora das Atualizações'
-                    },
-                    ticks: {
-                        maxRotation: 45,
-                        minRotation: 45
-                    }
-                }
-            }
-        };
-
-        const ctxSurtos = document.getElementById('grafico-surtos');
-        if (ctxSurtos) {
-            // Destruir gráfico anterior se existir
-            if (graficoSurtosInstance) {
-                graficoSurtosInstance.destroy();
-            }
-            
-            graficoSurtosInstance = new Chart(ctxSurtos, {
-                type: 'line',
-                data: data,
-                options: options
-            });
-        }
-    }
-    
-    <?php if (!empty($dadosGrafico)): ?>
-    // Preparar dados do gráfico inicial
-    const atualizacoesData = <?= json_encode($dadosGrafico); ?>;
-    const pragaNomeGrafico = <?= json_encode($pragaSelecionadaGrafico ? $pragaSelecionadaGrafico['Nome'] : 'Todas as Pragas'); ?>;
-    
-    // Criar gráfico inicial
-    criarGrafico(atualizacoesData, pragaNomeGrafico);
-    <?php endif; ?>
-    
+    // Função para atualizar o gráfico ao selecionar uma praga
     function atualizarGrafico(pragaID) {
-        const conteudoGrafico = document.getElementById('conteudo-grafico');
-        const url = pragaID ? `dashboard.php?acao=dados_grafico&praga_id=${pragaID}` : 'dashboard.php?acao=dados_grafico';
-        
-        // Mostrar loading
-        conteudoGrafico.innerHTML = '<div class="text-center p-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Carregando...</span></div></div>';
-        
-        fetch(url)
-            .then(response => response.json())
-            .then(data => {
-                if (data.success && data.dados && data.dados.length > 0) {
-                    // Criar canvas se não existir
-                    if (!document.getElementById('grafico-surtos')) {
-                        conteudoGrafico.innerHTML = '<canvas id="grafico-surtos" style="max-height: 250px;"></canvas>';
-                    }
-                    
-                    // Usar a função criarGrafico para renderizar
-                    criarGrafico(data.dados, data.pragaNome);
-                } else {
-                    // Não há dados
-                    conteudoGrafico.innerHTML = '<div class="alert alert-warning" style="font-size: 0.9rem;"><i class="bi bi-exclamation-triangle"></i> <strong>Nenhum dado de infestação registrado</strong> nos últimos 30 dias para a praga selecionada.<br><small>Para gerar o gráfico, cadastre ou atualize suas pragas informando a média de pragas por planta.</small></div>';
-                }
-            })
-            .catch(error => {
-                console.error('Erro ao carregar gráfico:', error);
-                conteudoGrafico.innerHTML = '<div class="alert alert-danger" style="font-size: 0.9rem;"><i class="bi bi-exclamation-triangle"></i> Erro ao carregar dados do gráfico.</div>';
-            });
+        // Recarregar a página com a praga selecionada
+        window.location.href = pragaID ? `dashboard.php?praga_id=${pragaID}` : 'dashboard.php';
     }
   </script>
 </body>

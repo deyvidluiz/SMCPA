@@ -47,6 +47,22 @@ try {
 try {
     $pdo->exec("ALTER TABLE Pragas_Surtos ADD COLUMN severidade VARCHAR(50) DEFAULT NULL");
 } catch (PDOException $e) {}
+try {
+    // Coluna para agrupar atualizações da mesma praga
+    $pdo->exec("ALTER TABLE Pragas_Surtos ADD COLUMN ID_Praga_Original INT DEFAULT NULL");
+} catch (PDOException $e) {}
+
+// Criar tabela de histórico se não existir (para guardar evolução das atualizações)
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS historico_pragas (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        ID_Praga INT NOT NULL,
+        media_pragas_planta DECIMAL(10,2),
+        severidade VARCHAR(50),
+        data_atualizacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (ID_Praga) REFERENCES Pragas_Surtos(ID) ON DELETE CASCADE
+    )");
+} catch (PDOException $e) {}
 
 // Processar atualização
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['acao'] === 'atualizar') {
@@ -57,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
         $descricao = isset($_POST['descricao']) ? trim($_POST['descricao']) : $pragaOriginal['Descricao'];
         $id_praga = isset($_POST['id_praga']) ? trim($_POST['id_praga']) : $pragaOriginal['ID_Praga'];
         $localidade = isset($_POST['localidade']) ? trim($_POST['localidade']) : $pragaOriginal['Localidade'];
-        $data_aparicao = isset($_POST['data_aparicao']) ? trim($_POST['data_aparicao']) : date('Y-m-d');
+        $data_aparicao = isset($_POST['data_aparicao']) ? trim($_POST['data_aparicao']) : date('Y-m-d H:i:s');
         $observacoes = isset($_POST['observacoes']) ? trim($_POST['observacoes']) : $pragaOriginal['Observacoes'];
         
         // Novos campos para melhorar o relatório
@@ -83,25 +99,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
             }
         }
         
-        // Atualizar registro existente (sobrepor)
-        $sqlUpdate = "UPDATE Pragas_Surtos SET 
-                        Nome = :nome, 
-                        Planta_Hospedeira = :planta_hospedeira, 
-                        Descricao = :descricao, 
-                        ID_Praga = :id_praga, 
-                        Localidade = :localidade, 
-                        Data_Aparicao = :data_aparicao, 
+        // Atualizar o registro existente (substitui os dados anteriores)
+        $sqlUpdate = "UPDATE Pragas_Surtos SET
+                        Nome = :nome,
+                        Planta_Hospedeira = :planta_hospedeira,
+                        Descricao = :descricao,
+                        ID_Praga = :id_praga,
+                        Localidade = :localidade,
+                        Data_Aparicao = :data_aparicao,
                         Observacoes = :observacoes,
-                        media_pragas_planta = :media_pragas_planta, 
-                        severidade = :severidade";
-        
-        // Se houver nova imagem, atualizar também
-        if (!empty($imagemNome)) {
-            $sqlUpdate .= ", Imagem_Not_Null = :imagem";
-        }
-        
-        $sqlUpdate .= " WHERE ID = :pragaID AND ID_Usuario = :usuario_id";
-        
+                        media_pragas_planta = :media_pragas_planta,
+                        severidade = :severidade,
+                        Imagem_Not_Null = :imagem
+                      WHERE ID = :id AND ID_Usuario = :usuario_id";
+
         $stmtUpdate = $pdo->prepare($sqlUpdate);
         $stmtUpdate->bindParam(':nome', $nome, PDO::PARAM_STR);
         $stmtUpdate->bindParam(':planta_hospedeira', $planta_hospedeira, PDO::PARAM_STR);
@@ -110,35 +121,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
         $stmtUpdate->bindParam(':localidade', $localidade, PDO::PARAM_STR);
         $stmtUpdate->bindParam(':data_aparicao', $data_aparicao, PDO::PARAM_STR);
         $stmtUpdate->bindParam(':observacoes', $observacoes, PDO::PARAM_STR);
+        $stmtUpdate->bindValue(':media_pragas_planta', $media_pragas_planta !== null ? (float)$media_pragas_planta : null, $media_pragas_planta !== null ? PDO::PARAM_STR : PDO::PARAM_NULL);
+        $stmtUpdate->bindValue(':severidade', $severidade, PDO::PARAM_STR);
+        $stmtUpdate->bindParam(':imagem', $imagemNome, PDO::PARAM_STR);
+        $stmtUpdate->bindParam(':id', $pragaID, PDO::PARAM_INT);
         $stmtUpdate->bindParam(':usuario_id', $usuarioID, PDO::PARAM_INT);
-        $stmtUpdate->bindParam(':pragaID', $pragaID, PDO::PARAM_INT);
-        $stmtUpdate->bindParam(':media_pragas_planta', $media_pragas_planta, $media_pragas_planta !== null ? PDO::PARAM_STR : PDO::PARAM_NULL);
-        $stmtUpdate->bindParam(':severidade', $severidade, $severidade !== null ? PDO::PARAM_STR : PDO::PARAM_NULL);
-        
-        if (!empty($imagemNome)) {
-            $stmtUpdate->bindParam(':imagem', $imagemNome, PDO::PARAM_STR);
-        }
-        
+
         if ($stmtUpdate->execute()) {
-            // Não gerar alertas novamente - apenas atualizar o registro existente
-            // Os alertas já foram gerados no cadastro original
-            
+            // Registrar no histórico de atualizações para o gráfico
+            try {
+                $stmtHistorico = $pdo->prepare("INSERT INTO historico_pragas (ID_Praga, media_pragas_planta, severidade, data_atualizacao) VALUES (:id_praga, :media, :sev, NOW())");
+                $stmtHistorico->bindParam(':id_praga', $pragaID, PDO::PARAM_INT);
+                $stmtHistorico->bindValue(':media', $media_pragas_planta !== null ? (float)$media_pragas_planta : null, $media_pragas_planta !== null ? PDO::PARAM_STR : PDO::PARAM_NULL);
+                $stmtHistorico->bindValue(':sev', $severidade, PDO::PARAM_STR);
+                $stmtHistorico->execute();
+            } catch (PDOException $e) {}
+
             // Verificar se deve gerar relatório apenas se a média de pragas por planta foi preenchida
             $deveGerarRelatorio = false;
-            
-            // Se a média de pragas por planta foi preenchida, gerar relatório
             if ($media_pragas_planta !== null && $media_pragas_planta > 0) {
                 $deveGerarRelatorio = true;
             }
-            
-            // Gerar relatório se necessário
+
             if ($deveGerarRelatorio) {
-                // Usar caminho absoluto para evitar problemas com caminhos relativos
                 header("Location: /SMCPA/paginas/dashboard/gerar_relatorio.php?id=" . $pragaID . "&auto=1");
                 exit;
             }
-            
-            // Se não gerou relatório, apenas redirecionar (primeira atualização)
+
             $dashboardUrl = "../dashboard/dashboard.php";
             try {
                 $stmtCheckAdmin = $pdo->prepare("SELECT is_admin FROM usuarios WHERE id = :id");
@@ -151,11 +160,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
             } catch (PDOException $e) {
                 // Usa dashboard padrão
             }
-            
-            echo '<script type="text/javascript">
-                alert("Praga atualizada com sucesso!");
-                window.location.href = "' . $dashboardUrl . '";
-            </script>';
+
+            echo "<script type=\"text/javascript\">\n                alert('Praga atualizada com sucesso!');\n                window.location.href = '" . $dashboardUrl . "';\n            </script>";
             exit;
         } else {
             echo '<script type="text/javascript">alert("Erro ao atualizar a praga.");</script>';

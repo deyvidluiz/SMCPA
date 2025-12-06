@@ -32,7 +32,7 @@ if (!$estaLogado || !$usuarioID) {
 
 // Incluir arquivos de conexão
 require_once('../../config.php'); 
-include_once(BASE_URL.'/conexao/conexao.php');
+include_once(BASE_URL.'/database/conexao.php');
 
 $db = new Database();
 $pdo = $db->conexao();

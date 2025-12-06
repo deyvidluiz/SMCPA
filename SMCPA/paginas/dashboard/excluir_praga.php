@@ -5,7 +5,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 require_once('../../config.php');
-include_once(BASE_URL . '/conexao/conexao.php');
+include_once(BASE_URL . '/database/conexao.php');
 
 // Obter ID do usuário
 $usuarioID = $_SESSION['usuario_id'] ?? $_SESSION['id'] ?? null;

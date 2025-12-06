@@ -38,7 +38,7 @@ header("Expires: 0"); // Proxies
 
 // Incluir o arquivo com a classe Database
 require_once('../../config.php'); 
-include_once(BASE_URL.'/conexao/conexao.php');  // Certifique-se de que esse caminho está correto
+include_once(BASE_URL.'/database/conexao.php');  // Certifique-se de que esse caminho está correto
 
 // Criar uma instância da classe Database
 $db = new Database();
@@ -478,8 +478,8 @@ if ($acao === 'recomendacoes' && $pragaSelecionada) {
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  <link rel="stylesheet" href="dashboardadm.css">
-  <link rel="stylesheet" href="dashboard.css">
+  <link rel="stylesheet" href="/SMCPA/css/dashboardadm.css">
+  <link rel="stylesheet" href="/SMCPA/css/dashboard.css">
   <title>Dashboard Admin - SMCPA</title>
   <style>
     /* Ajustes para garantir que o content tenha scroll quando necessário */

@@ -37,7 +37,7 @@ header("Expires: 0"); // Proxies
 
 // Incluir arquivos de conexão
 require_once('../../config.php'); 
-include_once(BASE_URL.'/conexao/conexao.php');
+include_once(BASE_URL.'/database/conexao.php');
 
 $db = new Database();
 $pdo = $db->conexao();
@@ -326,7 +326,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deletar_conta']) && $
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="stylesheet" href="perfil.css">
+    <link rel="stylesheet" href="/SMCPA/css/perfil.css">
 </head>
 <body>
     <div class="perfil-container">

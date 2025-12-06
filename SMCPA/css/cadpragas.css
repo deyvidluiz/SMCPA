@@ -1,34 +1,59 @@
-/* Layout geral */
-body {
-    font-family: Arial, sans-serif;
-    padding: 20px;
-    background: #f3f4f6;
-    color: #222;
+/* ============================================
+   IMPORTS E RESET
+   ============================================ */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap');
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
-/* Formulário */
+/* ============================================
+   LAYOUT GERAL
+   ============================================ */
+body {
+    font-family: 'Roboto', sans-serif;
+    background-color: #f5f6fa;
+    color: #333;
+    min-height: 100vh;
+}
+
+.h1 {
+    text-align: center;
+    margin: 30px 0 30px 0;
+    font-size: 32px;
+    font-weight: 700;
+    color: #1f2937;
+}
+
+/* ============================================
+   FORMULÁRIO DE CADASTRO
+   ============================================ */
 form {
-    margin: 0 auto 30px auto;
-    padding: 20px;
-    border-radius: 10px;
-    max-width: 700px;
+    margin: 0 auto 40px auto;
+    padding: 30px;
+    border-radius: 16px;
     background: #ffffff;
     border: 1px solid #e5e7eb;
-    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
-}
-.h1{
-    text-align: center;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    max-width: 700px;
 }
 
 form h1, form h2 {
     margin-top: 0;
-    text-align: center;
+    margin-bottom: 25px;
+    text-align: left;
+    color: #1f2937;
+    font-size: 24px;
+    font-weight: 700;
 }
 
 /* Labels e campos */
 label {
     display: block;
-    margin-top: 12px;
+    margin-top: 16px;
+    margin-bottom: 8px;
     font-size: 0.95rem;
     font-weight: 600;
     color: #374151;
@@ -36,147 +61,106 @@ label {
 
 input[type="text"],
 input[type="date"],
-textarea {
+input[type="number"],
+select.form-select,
+textarea,
+.form-control {
     width: 100%;
-    padding: 8px 10px;
-    margin-top: 4px;
+    padding: 12px 14px;
+    margin-top: 0;
     box-sizing: border-box;
-    border-radius: 6px;
-    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    border: 1.5px solid #d1d5db;
     font-size: 0.95rem;
-    background-color: #f9fafb;
+    background-color: #ffffff;
     transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 }
 
 input[type="text"]:focus,
 input[type="date"]:focus,
-textarea:focus {
+input[type="number"]:focus,
+select.form-select:focus,
+textarea:focus,
+.form-control:focus {
     outline: none;
-    border-color: #2563eb;
-    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+    border-color: #16a34a;
+    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.2);
     background-color: #ffffff;
 }
 
-
 textarea {
     resize: vertical;
-    min-height: 80px;
+    min-height: 90px;
 }
 
 input[type="file"] {
-    margin-top: 6px;
+    margin-top: 8px;
     font-size: 0.9rem;
-}
-
-/* Botão padrão */
-button {
-    margin-top: 18px;
-    padding: 9px 20px;
-    cursor: pointer;
-    border-radius: 999px;
-    border: none;
-    font-size: 0.95rem;
-    font-weight: 600;
-    background: #16a34a;
-    color: #ffffff;
-    letter-spacing: 0.02em;
-    transition: background 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
-}
-
-button:hover {
-    background: #15803d;
-    box-shadow: 0 4px 10px rgba(22, 163, 74, 0.3);
-    transform: translateY(-1px);
-}
-
-button:active {
-    transform: translateY(0);
-    box-shadow: none;
-}
-
-/* Tabelas */
-table {
-    border-collapse: collapse;
-    width: 100%;
-    margin-top: 20px;
+    padding: 10px;
+    border: 1.5px solid #d1d5db;
+    border-radius: 8px;
     background: #ffffff;
+}
+
+/* Seções do Formulário */
+.nome,
+.hosp,
+.desc,
+.loca,
+.data,
+.obs,
+.arqimg,
+.but {
+    margin-bottom: 20px;
+}
+
+.arqimg {
+    margin-top: 25px;
+    padding-top: 25px;
+    border-top: 2px solid #e5e7eb;
+}
+
+.but {
+    margin-top: 30px;
+}
+
+/* Botão principal - VERDE */
+button[type="submit"],
+.but button {
+    margin-top: 30px;
+    padding: 14px 32px;
+    cursor: pointer;
     border-radius: 10px;
-    overflow: hidden;
-    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
-}
-
-th, td {
-    padding: 10px 12px;
-    text-align: left;
-    font-size: 0.9rem;
-}
-
-th {
-    background: #111827;
-    color: #f9fafb;
-    font-weight: 600;
-    border-bottom: 1px solid #1f2937;
-}
-
-tbody tr:nth-child(even) {
-    background-color: #f9fafb;
-}
-
-tbody tr:hover {
-    background-color: #e5e7eb;
-}
-
-/* Imagens das pragas */
-img {
-    max-width: 80px;
-    max-height: 80px;
-    display: block;
-    border-radius: 6px;
-    object-fit: cover;
-    border: 1px solid #e5e7eb;
-}
-
-/* Ações (links de excluir/editar) */
-.actions a {
-    margin-right: 8px;
-    display: inline-block;
-    padding: 6px 10px;
-    font-size: 0.8rem;
-    border-radius: 999px;
-    text-decoration: none;
+    border: none;
+    font-size: 1rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
     color: #ffffff;
-    background: #2563eb;
-    transition: background 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+    letter-spacing: 0.03em;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+    width: 100%;
 }
 
-.actions a:hover {
-    background: #1d4ed8;
-    box-shadow: 0 3px 8px rgba(37, 99, 235, 0.35);
-    transform: translateY(-1px);
+button[type="submit"]:hover,
+.but button:hover {
+    background: linear-gradient(135deg, #15803d 0%, #166534 100%);
+    box-shadow: 0 6px 20px rgba(22, 163, 74, 0.4);
+    transform: translateY(-2px);
 }
 
-.actions a.btn-danger {
-    background: #dc2626;
+button[type="submit"]:active,
+.but button:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(22, 163, 74, 0.3);
 }
-
-.actions a.btn-danger:hover {
-    background: #b91c1c;
+/* Alerts do Bootstrap */
+.alert {
+    margin: 0 auto 20px auto;
+    border-radius: 12px;
+    padding: 16px 20px;
+    max-width: 700px;
 }
-/* Reset de estilo e box-sizing */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-/* Estilo do body */
-body {
-    font-family: 'Roboto', sans-serif;
-    background-color: #f5f6fa;
-    color: #333;
-}
-
-/* Container do Dashboard */
 .dashboard-container {
     display: flex;
     height: 100vh;
@@ -197,6 +181,7 @@ body {
     left: 0;
     top: 0;
     bottom: 0;
+    z-index: 1000;
 }
 
 /* Logo da Sidebar */
@@ -262,37 +247,58 @@ body {
     white-space: nowrap;
 }
 
-/* Tabela */
-.tabela-container {
-    margin-left: 20%; /* Espaço para o painel lateral */
-    padding: 20px;
-    flex-grow: 1;
-    overflow-x: auto; /* Scroll horizontal se necessário */
+/* ============================================
+   RESPONSIVIDADE
+   ============================================ */
+@media (max-width: 1200px) {
+    .h1,
+    form,
+    .alert {
+        margin-left: 0;
+        margin-right: 0;
+        width: 100%;
+    }
+    
+    .sidebar {
+        width: 100%;
+        position: relative;
+        height: auto;
+        padding-bottom: 30px;
+    }
+
+    form {
+        margin: 0 20px 40px 20px;
+        width: calc(100% - 40px);
+    }
+
+    .h1 {
+        margin: 30px 0 30px 20px;
+        text-align: left;
+    }
+
+    .alert {
+        margin: 0 20px 20px 20px;
+        width: calc(100% - 40px);
+    }
 }
 
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 20px;
-}
-
-th, td {
-    border: 1px solid #ddd;
-    padding: 12px;
-    text-align: left;
-}
-
-th {
-    background-color: #f4f4f4;
-    color: #333;
-}
-
-tr:nth-child(even) {
-    background-color: #f9f9f9;
-}
-
-/* Responsividade: Ajusta o layout para telas menores */
 @media (max-width: 768px) {
+    body {
+        padding: 10px;
+    }
+
+    .h1 {
+        font-size: 24px;
+        margin: 20px 10px;
+        padding-left: 0;
+    }
+
+    form {
+        padding: 20px;
+        margin: 10px;
+        width: calc(100% - 20px);
+    }
+
     .dashboard-container {
         flex-direction: column;
     }
@@ -301,10 +307,23 @@ tr:nth-child(even) {
         width: 100%;
         position: relative;
     }
-    
-    .tabela-container {
-        margin-left: 0;
+
+    button[type="submit"],
+    .but button {
+        width: 100%;
     }
 }
 
-@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+@media (max-width: 480px) {
+    form {
+        padding: 15px;
+        margin: 10px;
+        width: calc(100% - 20px);
+    }
+
+    button[type="submit"],
+    .but button {
+        padding: 12px 20px;
+        font-size: 0.9rem;
+    }
+}

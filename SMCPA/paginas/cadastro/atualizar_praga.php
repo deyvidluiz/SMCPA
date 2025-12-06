@@ -1,7 +1,7 @@
 <?php
 session_start();
 require_once('../../config.php');
-include_once(BASE_URL.'/conexao/conexao.php');
+include_once(BASE_URL.'/database/conexao.php');
 
 // Verificar se o usuário está logado
 if (!isset($_SESSION['id'])) {
@@ -177,17 +177,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
 </head>
 <body>
     <div class="h1">
-        <h1>Atualizar Praga</h1>
-        <p class="text-muted">Usuário: <?php echo htmlspecialchars($_SESSION['usuario'] ?? 'Não identificado'); ?></p>
-        <div class="alert alert-info">
-            <i class="bi bi-info-circle"></i> 
-            <strong>Atualização de Praga:</strong> Ao atualizar, o registro existente será substituído pelas novas informações. 
-            <?php if ($temMediaPreenchida): ?>
-                <br><small>Se você preencher a "Média de Pragas por Planta", o relatório será gerado automaticamente após salvar.</small>
-            <?php else: ?>
-                <br><small>Preencha a "Média de Pragas por Planta" para gerar o relatório automaticamente.</small>
-            <?php endif; ?>
-        </div>
+            <strong>Atualização da Praga:</strong> 
     </div>
     
     <form method="post" enctype="multipart/form-data">

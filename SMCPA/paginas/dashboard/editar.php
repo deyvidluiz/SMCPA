@@ -1,6 +1,6 @@
 <?php
 require_once('../../config.php');
-include_once(BASE_URL.'/conexao/conexao.php');
+include_once(BASE_URL.'/database/conexao.php');
 
 // Verifica se o ID foi passado (por exemplo, via GET ou POST)
 if (isset($_GET['id'])) {

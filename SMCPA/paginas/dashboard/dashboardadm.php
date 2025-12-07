@@ -619,13 +619,23 @@ if ($acao === 'recomendacoes' && $pragaSelecionada) {
             <?php if (!empty($todasPragas)): ?>
               <div class="list-group" style="max-height: 250px; overflow-y: auto;">
                 <?php foreach ($todasPragas as $praga): ?>
-                  <div class="list-group-item list-group-item-action">
-                    <div class="d-flex w-100 justify-content-between">
-                      <h6 class="mb-1"><?= htmlspecialchars($praga['Nome']); ?></h6>
+                  <div class="list-group-item">
+                    <div class="d-flex w-100 justify-content-between align-items-start mb-2">
+                      <div style="flex: 1;">
+                        <h6 class="mb-1"><?= htmlspecialchars($praga['Nome']); ?></h6>
+                        <p class="mb-1"><small class="text-muted"><i class="bi bi-flower1"></i> <?= htmlspecialchars($praga['Planta_Hospedeira']); ?></small></p>
+                        <p class="mb-0"><small class="text-muted"><i class="bi bi-geo-alt"></i> <?= htmlspecialchars($praga['Localidade']); ?></small></p>
+                      </div>
                       <small class="text-muted"><?= date('d/m/Y', strtotime($praga['Data_Aparicao'])); ?></small>
                     </div>
-                    <p class="mb-1"><small class="text-muted"><i class="bi bi-flower1"></i> <?= htmlspecialchars($praga['Planta_Hospedeira']); ?></small></p>
-                    <p class="mb-0"><small class="text-muted"><i class="bi bi-geo-alt"></i> <?= htmlspecialchars($praga['Localidade']); ?></small></p>
+                    <div class="d-grid gap-2" style="grid-template-columns: 1fr 1fr;">
+                      <a href="../cadastro/atualizar_praga.php?id=<?= $praga['ID']; ?>" class="btn btn-sm btn-primary" title="Atualizar praga">
+                        <i class="bi bi-pencil-square"></i> Atualizar
+                      </a>
+                      <a href="gerar_relatorio.php?id=<?= $praga['ID']; ?>" class="btn btn-sm btn-info" target="_blank" title="Gerar relatório">
+                        <i class="bi bi-file-earmark-pdf"></i> Relatório
+                      </a>
+                    </div>
                   </div>
                 <?php endforeach; ?>
               </div>

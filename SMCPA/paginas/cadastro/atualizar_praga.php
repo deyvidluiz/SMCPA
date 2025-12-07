@@ -20,7 +20,7 @@ if ($pragaID <= 0) {
 $pdo = new Database();
 $pdo = $pdo->conexao();
 
-// Buscar dados da praga original
+// Buscar dados da praga original (cada usuário só pode atualizar suas próprias pragas)
 try {
     $stmt = $pdo->prepare("SELECT * FROM Pragas_Surtos WHERE ID = :id AND ID_Usuario = :usuarioID");
     $stmt->bindParam(':id', $pragaID, PDO::PARAM_INT);

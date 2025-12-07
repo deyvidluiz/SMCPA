@@ -363,7 +363,7 @@ $dados = $stmt->fetchAll(PDO::FETCH_ASSOC);
                   
                   <div class="card-footer bg-transparent border-top-0">
                     <div class="d-grid gap-2">
-                      <a href="dashboardadm.php?usuario_id=<?= $user['id']; ?>" 
+                      <a href="perfil.php?id=<?= $user['id']; ?>" 
                          class="btn btn-primary btn-sm">
                         <i class="bi bi-eye"></i> Ver Detalhes
                       </a>

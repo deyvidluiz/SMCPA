@@ -336,19 +336,15 @@ class Upload
                         } else {
                             echo '<script type="text/javascript">alert("Erro ao armazenar os dados no banco.");</script>';
                         }
-
                     } else {
                         echo '<script type="text/javascript">alert("Erro ao mover o arquivo de imagem.");</script>';
                     }
-
                 } else {
                     echo '<script type="text/javascript">alert("' . implode(' ', $erros) . '");</script>';
                 }
-
             } else {
                 echo '<script type="text/javascript">alert("Escolha um arquivo de imagem para upload.");</script>';
             }
-
         } catch (PDOException $ex) {
             echo '<script type="text/javascript">alert("Error: ' . $ex->getMessage() . '");</script>';
         }
@@ -383,7 +379,6 @@ class Upload
             } else {
                 echo '<script type="text/javascript">alert("Erro ao deletar o registro.");</script>';
             }
-
         } catch (PDOException $ex) {
             echo '<script type="text/javascript">alert("Error: ' . $ex->getMessage() . '");</script>';
         }
@@ -422,165 +417,119 @@ $lista = $upload->querySelect();
 </head>
 
 <body>
-    <div class="h1">
-        <strong>Cadastro de Pragas:</strong>
-    </div>
-
-    <?php if (isset($_GET['sucesso'])): ?>
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            Operação realizada com sucesso!
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    <?php endif; ?>
-
-    <!-- FORMULÁRIO DE CADASTRO -->
-    <form method="post" enctype="multipart/form-data">
-        <input type="hidden" name="acao" value="inserir">
-
-        <div class="nome">
-            <label>Nome comum da praga:
-                <input type="text" name="nome" required>
-            </label>
-        </div>
-
-        <div class="hosp">
-            <label>Planta hospedeira:
-                <input type="text" name="planta_hospedeira" required>
-            </label>
-        </div>
-
-        <div class="desc">
-            <label>Descrição detalhada:
-                <textarea name="descricao" rows="3"></textarea>
-            </label>
-        </div>
-
-        <div class="loca">
-            <label>Localidade:
-                <input type="text" name="localidade">
-            </label>
-        </div>
-
-        <div class="data">
-            <label>Data de aparição:
-                <input type="date" name="data_aparicao">
-            </label>
-        </div>
-
-        <div class="obs">
-            <label>Observações:
-                <textarea name="observacoes" rows="3"></textarea>
-            </label>
-        </div>
-
-        <!-- Informações Adicionais para o Relatório -->
-        <div class="alert alert-info mt-3 mb-3" style="margin: 20px 0;">
-            <strong><i class="bi bi-info-circle"></i> Informações Adicionais para o Relatório:</strong>
-            <small>Preencha estes campos para gerar um relatório mais completo e preciso.</small>
-        </div>
-
-        <div class="row" style="margin: 0;">
-            <div class="col-md-6" style="padding: 0 10px;">
-                <div class="mb-3">
-                    <label for="media_pragas_planta" class="form-label">
-                        Média de Pragas por Planta:
-                        <small class="text-muted">(ex: 5.5)</small>
-                    </label>
-                    <input type="number" class="form-control" id="media_pragas_planta" name="media_pragas_planta"
-                        step="0.1" min="0" placeholder="Ex: 5.5">
-                    <small class="text-muted">Número médio de pragas encontradas por planta</small>
-                </div>
-            </div>
-            <div class="col-md-6" style="padding: 0 10px;">
-                <div class="mb-3">
-                    <label for="severidade" class="form-label">Severidade:</label>
-                    <select class="form-select" id="severidade" name="severidade">
-                        <option value="">Selecione...</option>
-                        <option value="Baixa">Baixa</option>
-                        <option value="Média">Média</option>
-                        <option value="Alta">Alta</option>
-                        <option value="Muito Alta">Muito Alta</option>
-                    </select>
-                    <small class="text-muted">Nível de severidade do ataque</small>
-                </div>
-            </div>
-        </div>
-
-
-        <div class="arqimg">
-            <label>Imagem (até 1920x1080, JPG ou PNG, máx. 5MB)*:
-                <input type="file" name="imagem" accept="image/jpeg,image/png,image/jpg" required>
-            </label>
-        </div>
-
-        <div class="but">
-            <button type="submit">Salvar praga</button>
-        </div>
-    </form>
-
     <div class="dashboard-container">
-        <!-- Sidebar (Menu Lateral) -->
-        <aside class="sidebar">
-            <div class="logo">
-                <a href="<?= $isAdmin ? '/SMCPA/paginas/dashboard/dashboardadm.php' : '/SMCPA/paginas/dashboard/dashboard.php'; ?>">
-                    <img src="/SMCPA/imgs/logotrbf.png" alt="SMCPA Logo">
-                </a>
-            </div>
-            <nav class="menu-lateral">
-                <ul>
-                    <li class="item-menu">
-                        <a href="<?= $isAdmin ? '/SMCPA/paginas/dashboard/dashboardadm.php' : '/SMCPA/paginas/dashboard/dashboard.php'; ?>">
-                            <span class="icon"><i class="fa-solid fa-home"></i></span>
-                            <span class="txt-link">Home</span>
-                        </a>
-                    </li>
-                    <li class="item-menu">
-                        <a href="/SMCPA/paginas/cadastro/cadpraga.php">
-                            <span class="icon"><i class="bi bi-columns-gap"></i></span>
-                            <span class="txt-link">Cadastrar Pragas</span>
-                        </a>
-                    </li>
-                    <li class="item-menu">
-                        <a href="/SMCPA/paginas/cadastro/cadsurto.php">
-                            <span class="icon"><i class="bi bi-exclamation-triangle"></i></span>
-                            <span class="txt-link">Cadastrar Surtos</span>
-                        </a>
-                    </li>
-                    <li class="item-menu">
-                        <a href="/SMCPA/paginas/dashboard/filtros_pragas.php">
-                            <span class="icon"><i class="bi bi-funnel"></i></span>
-                            <span class="txt-link">Filtros de Pragas</span>
-                        </a>
-                    </li>
-                    <?php if ($isAdmin): ?>
-                    <li class="item-menu">
-                        <a href="/SMCPA/paginas/dashboard/filtros_usuarios.php">
-                            <span class="icon"><i class="bi bi-people"></i></span>
-                            <span class="txt-link">Filtros de Usuários</span>
-                        </a>
-                    </li>
+        <?php include_once(BASE_URL . '/includes/sidebar.php'); ?>
+
+        <main class="main-content">
+            <header class="topbar">
+                <div class="left"></div>
+                <div class="right d-flex align-items-center gap-3">
+                    <a href="../tutorial/tutorial.php" class="btn btn-outline-light">
+                        <i class="fa-solid fa-book"></i> Tutoriais
+                    </a>
+                </div>
+            </header>
+
+            <section class="content">
+                <div style="width: 100%; max-width: 700px;">
+                    <div class="h1">
+                        <strong>Cadastro de Pragas:</strong>
+                    </div>
+
+                    <?php if (isset($_GET['sucesso'])): ?>
+                        <div class="alert alert-success alert-dismissible fade show" role="alert">
+                            Operação realizada com sucesso!
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
                     <?php endif; ?>
-                    <li class="item-menu">
-                        <a href="/SMCPA/paginas/dashboard/feedback.php">
-                            <span class="icon"><i class="bi bi-chat-dots"></i></span>
-                            <span class="txt-link">Feedback</span>
-                        </a>
-                    </li>
-                    <li class="item-menu">
-                        <a href="/SMCPA/paginas/dashboard/perfil.php">
-                            <span class="icon"><i class="bi bi-person-lines-fill"></i></span>
-                            <span class="txt-link">Conta</span>
-                        </a>
-                    </li>
-                    <li class="item-menu">
-                        <a href="/SMCPA/paginas/login/logout.php">
-                            <span class="icon"><i class="bi bi-box-arrow-right"></i></span>
-                            <span class="txt-link">Sair</span>
-                        </a>
-                    </li>
-                </ul>
-            </nav>
-        </aside>
+
+                    <!-- FORMULÁRIO DE CADASTRO -->
+                    <form method="post" enctype="multipart/form-data">
+                        <input type="hidden" name="acao" value="inserir">
+
+                        <div class="nome">
+                            <label>Nome comum da praga:
+                                <input type="text" name="nome" required>
+                            </label>
+                        </div>
+
+                        <div class="hosp">
+                            <label>Planta hospedeira:
+                                <input type="text" name="planta_hospedeira" required>
+                            </label>
+                        </div>
+
+                        <div class="desc">
+                            <label>Descrição detalhada:
+                                <textarea name="descricao" rows="3"></textarea>
+                            </label>
+                        </div>
+
+                        <div class="loca">
+                            <label>Localidade:
+                                <input type="text" name="localidade">
+                            </label>
+                        </div>
+
+                        <div class="data">
+                            <label>Data de aparição:
+                                <input type="date" name="data_aparicao">
+                            </label>
+                        </div>
+
+                        <div class="obs">
+                            <label>Observações:
+                                <textarea name="observacoes" rows="3"></textarea>
+                            </label>
+                        </div>
+
+                        <!-- Informações Adicionais para o Relatório -->
+                        <div class="alert alert-info mt-3 mb-3" style="margin: 20px 0;">
+                            <strong><i class="bi bi-info-circle"></i> Informações Adicionais para o Relatório:</strong>
+                            <small>Preencha estes campos para gerar um relatório mais completo e preciso.</small>
+                        </div>
+
+                        <div class="row" style="margin: 0;">
+                            <div class="col-md-6" style="padding: 0 10px;">
+                                <div class="mb-3">
+                                    <label for="media_pragas_planta" class="form-label">
+                                        Média de Pragas por Planta:
+                                        <small class="text-muted">(ex: 5.5)</small>
+                                    </label>
+                                    <input type="number" class="form-control" id="media_pragas_planta" name="media_pragas_planta"
+                                        step="0.1" min="0" placeholder="Ex: 5.5">
+                                    <small class="text-muted">Número médio de pragas encontradas por planta</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6" style="padding: 0 10px;">
+                                <div class="mb-3">
+                                    <label for="severidade" class="form-label">Severidade:</label>
+                                    <select class="form-select" id="severidade" name="severidade">
+                                        <option value="">Selecione...</option>
+                                        <option value="Baixa">Baixa</option>
+                                        <option value="Média">Média</option>
+                                        <option value="Alta">Alta</option>
+                                        <option value="Muito Alta">Muito Alta</option>
+                                    </select>
+                                    <small class="text-muted">Nível de severidade do ataque</small>
+                                </div>
+                            </div>
+                        </div>
+
+
+                        <div class="arqimg">
+                            <label>Imagem (até 1920x1080, JPG ou PNG, máx. 5MB)*:
+                                <input type="file" name="imagem" accept="image/jpeg,image/png,image/jpg" required>
+                            </label>
+                        </div>
+
+                        <div class="but">
+                            <button type="submit">Salvar praga</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+        </main>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

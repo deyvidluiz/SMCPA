@@ -1,112 +1,23 @@
-  /* Reset de estilo e box-sizing */
-  * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
+/* ============================================
+   IMPORTS
+   ============================================ */
+@import url('dashboard.css');
 
-/* Estilo do body */
-body {
-    font-family: 'Roboto', sans-serif;
-    background-color: #f5f6fa;
-    color: #333;
-}
-
-/* Container do Dashboard */
-.dashboard-container {
-    display: flex;
-    height: 100vh;
-}
-
-.titulo{
+/* ============================================
+   ESTILOS ESPECÍFICOS DASHBOARDADM
+   ============================================ */
+.titulo {
     text-align: center;
-}
-
-/* Sidebar (Menu Lateral) */
-.sidebar {
-    width: 20%;
-    background: linear-gradient(135deg, rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url('/SMCPA/imgs/barraesq.jpg');
-    background-size: cover;
-    background-position: center;
-    color: #ffffff;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 30px 15px 20px 15px;
-    position: fixed;
-    left: 0;
-    top: 0;
-    bottom: 0;
-}
-
-/* Logo da Sidebar */
-.sidebar .logo img {
-    width: 120px;
-    margin-bottom: 40px;
-}
-
-/* Menu Lateral */
-.sidebar nav.menu-lateral {
-    width: 100%;
-    height: 100%;
-    background-color: transparent;
-    padding: 40px 0 40px 0;
-    position: relative;
-}
-
-.sidebar nav.menu-lateral ul {
-    list-style: none;
-    height: 100%;
-    width: 100%;
-    padding-left: 0;
-    margin: 0;
-}
-
-.sidebar nav.menu-lateral ul li.item-menu {
-    margin-bottom: 12px;
-    transition: transform 0.2s ease;
-}
-
-.sidebar nav.menu-lateral ul li.item-menu a {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    color: #ffffff;
-    text-decoration: none;
-    padding: 12px 18px;
-    border-radius: 16px;
-    font-size: 17px;
-    font-weight: 500;
-    width: 85%;
-    margin: 0 auto;
-    background: rgba(0, 0, 0, 0.25);
-    backdrop-filter: blur(2px);
-    transition: background 0.2s ease, transform 0.2s ease;
-}
-
-.sidebar nav.menu-lateral ul li.item-menu:hover a,
-.sidebar nav.menu-lateral ul li.ativo a {
-    background: rgba(195, 195, 195, 0.75);
-    color: #111;
-    transform: translateX(4px);
-}
-
-.sidebar nav.menu-lateral ul li.item-menu a .icon > i {
-    font-size: 28px;
-}
-
-.sidebar nav.menu-lateral ul li.item-menu a .txt-link {
-    margin-left: 12px;
-    font-weight: 500;
-    white-space: nowrap;
 }
 
 /* Tabela */
 .tabela-container {
-    margin-left: 20%; /* Espaço para o painel lateral */
+    margin-left: 20%;
+    /* Espaço para o painel lateral */
     padding: 20px;
     flex-grow: 1;
-    overflow-x: auto; /* Scroll horizontal se necessário */
+    overflow-x: auto;
+    /* Scroll horizontal se necessário */
 }
 
 table {
@@ -115,7 +26,8 @@ table {
     margin-top: 20px;
 }
 
-th, td {
+th,
+td {
     border: 1px solid #ddd;
     padding: 12px;
     text-align: left;
@@ -135,12 +47,12 @@ tr:nth-child(even) {
     .dashboard-container {
         flex-direction: column;
     }
-    
+
     .sidebar {
         width: 100%;
         position: relative;
     }
-    
+
     .tabela-container {
         margin-left: 0;
     }

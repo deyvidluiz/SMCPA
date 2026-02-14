@@ -5,7 +5,7 @@ ini_set('session.cookie_domain', '');
 
 // Iniciar sessão PRIMEIRO
 if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+  session_start();
 }
 
 // Verifica se o usuário está logado
@@ -14,20 +14,20 @@ $usuarioID = null;
 
 // Verifica a flag 'logado' definida no login.php
 if (isset($_SESSION['logado']) && $_SESSION['logado'] === true) {
-    if (isset($_SESSION['usuario_id']) && !empty($_SESSION['usuario_id'])) {
-        $usuarioID = $_SESSION['usuario_id'];
-        $estaLogado = true;
-    } elseif (isset($_SESSION['id']) && !empty($_SESSION['id'])) {
-        $usuarioID = $_SESSION['id'];
-        $estaLogado = true;
-    }
+  if (isset($_SESSION['usuario_id']) && !empty($_SESSION['usuario_id'])) {
+    $usuarioID = $_SESSION['usuario_id'];
+    $estaLogado = true;
+  } elseif (isset($_SESSION['id']) && !empty($_SESSION['id'])) {
+    $usuarioID = $_SESSION['id'];
+    $estaLogado = true;
+  }
 }
 
 // Se não estiver logado, redireciona
 if (!$estaLogado || !$usuarioID) {
-    session_destroy();
-    header("Location: ../login/login.php");
-    exit;
+  session_destroy();
+  header("Location: ../login/login.php");
+  exit;
 }
 
 // Headers para prevenir cache
@@ -36,8 +36,8 @@ header("Pragma: no-cache");
 header("Expires: 0");
 
 // Incluir arquivos de conexão
-require_once('../../config.php'); 
-include_once(BASE_URL.'/database/conexao.php');
+require_once('../../config.php');
+include_once(BASE_URL . '/database/conexao.php');
 
 $db = new Database();
 $pdo = $db->conexao();
@@ -45,24 +45,24 @@ $pdo = $db->conexao();
 // Verificar se é administrador
 $isAdmin = false;
 if (isset($_SESSION['is_admin'])) {
-    $isAdmin = $_SESSION['is_admin'] == 1;
+  $isAdmin = $_SESSION['is_admin'] == 1;
 } else {
-    try {
-        $stmtAdmin = $pdo->prepare("SELECT is_admin FROM usuarios WHERE id = :id");
-        $stmtAdmin->bindParam(':id', $usuarioID, PDO::PARAM_INT);
-        $stmtAdmin->execute();
-        $userAdmin = $stmtAdmin->fetch(PDO::FETCH_ASSOC);
-        $isAdmin = ($userAdmin && isset($userAdmin['is_admin']) && $userAdmin['is_admin'] == 1);
-        $_SESSION['is_admin'] = $isAdmin ? 1 : 0;
-    } catch (PDOException $e) {
-        $isAdmin = false;
-    }
+  try {
+    $stmtAdmin = $pdo->prepare("SELECT is_admin FROM usuarios WHERE id = :id");
+    $stmtAdmin->bindParam(':id', $usuarioID, PDO::PARAM_INT);
+    $stmtAdmin->execute();
+    $userAdmin = $stmtAdmin->fetch(PDO::FETCH_ASSOC);
+    $isAdmin = ($userAdmin && isset($userAdmin['is_admin']) && $userAdmin['is_admin'] == 1);
+    $_SESSION['is_admin'] = $isAdmin ? 1 : 0;
+  } catch (PDOException $e) {
+    $isAdmin = false;
+  }
 }
 
 // Apenas administradores podem acessar
 if (!$isAdmin) {
-    header("Location: ../login/login.php?erro=acesso_negado");
-    exit;
+  header("Location: ../login/login.php?erro=acesso_negado");
+  exit;
 }
 
 // Processar exclusão de usuário (somente administradores)
@@ -97,8 +97,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $imgs = $stmtImgs->fetchAll(PDO::FETCH_ASSOC);
         foreach ($imgs as $im) {
           if (!empty($im['Imagem_Not_Null'])) {
-            $filePath = $_SERVER['DOCUMENT_ROOT'].'/uploads/pragas/'. $im['Imagem_Not_Null'];
-            if (file_exists($filePath)) {@unlink($filePath);} 
+            $filePath = $_SERVER['DOCUMENT_ROOT'] . '/uploads/pragas/' . $im['Imagem_Not_Null'];
+            if (file_exists($filePath)) {
+              @unlink($filePath);
+            }
           }
         }
 
@@ -115,8 +117,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
       $leftoverImgs = $stmtCleanup->fetchAll(PDO::FETCH_ASSOC);
       foreach ($leftoverImgs as $li) {
         if (!empty($li['Imagem_Not_Null'])) {
-          $filePath = $_SERVER['DOCUMENT_ROOT'].'/uploads/pragas/'. $li['Imagem_Not_Null'];
-          if (file_exists($filePath)) {@unlink($filePath);} 
+          $filePath = $_SERVER['DOCUMENT_ROOT'] . '/uploads/pragas/' . $li['Imagem_Not_Null'];
+          if (file_exists($filePath)) {
+            @unlink($filePath);
+          }
         }
       }
       $stmtDelAll = $pdo->prepare("DELETE FROM Pragas_Surtos WHERE ID_Usuario = :uid");
@@ -129,8 +133,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
       $stmtImg->execute();
       $rowImg = $stmtImg->fetch(PDO::FETCH_ASSOC);
       if ($rowImg && !empty($rowImg['Imagem'])) {
-        $filePath = $_SERVER['DOCUMENT_ROOT'].'/uploads/usuarios/'. $rowImg['Imagem'];
-        if (file_exists($filePath)) {@unlink($filePath);} 
+        $filePath = $_SERVER['DOCUMENT_ROOT'] . '/uploads/usuarios/' . $rowImg['Imagem'];
+        if (file_exists($filePath)) {
+          @unlink($filePath);
+        }
       }
 
       // Finalmente: excluir o usuário
@@ -149,27 +155,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 // Buscar imagem do perfil do usuário
 $imagemPerfil = null;
 if ($usuarioID) {
-    try {
-        $stmtImagem = $pdo->prepare("SELECT Imagem FROM usuarios WHERE id = :id");
-        $stmtImagem->bindParam(':id', $usuarioID, PDO::PARAM_INT);
-        $stmtImagem->execute();
-        $resultado = $stmtImagem->fetch(PDO::FETCH_ASSOC);
-        if ($resultado && !empty($resultado['Imagem'])) {
-            $imagemPerfil = '/uploads/usuarios/' . $resultado['Imagem'];
-        }
-    } catch (PDOException $e) {
-        $imagemPerfil = null;
+  try {
+    $stmtImagem = $pdo->prepare("SELECT Imagem FROM usuarios WHERE id = :id");
+    $stmtImagem->bindParam(':id', $usuarioID, PDO::PARAM_INT);
+    $stmtImagem->execute();
+    $resultado = $stmtImagem->fetch(PDO::FETCH_ASSOC);
+    if ($resultado && !empty($resultado['Imagem'])) {
+      $imagemPerfil = '/uploads/usuarios/' . $resultado['Imagem'];
     }
+  } catch (PDOException $e) {
+    $imagemPerfil = null;
+  }
 }
 if (!$imagemPerfil) {
-    $imagemPerfil = '/SMCPA/imgs/logotrbf.png';
+  $imagemPerfil = '/SMCPA/imgs/logotrbf.png';
 }
 
 // ================== PESQUISA DE USUÁRIOS ==================
 if (isset($_POST['procurar'])) {
-    $pesquisa = $_POST['procurar'];
+  $pesquisa = $_POST['procurar'];
 } else {
-    $pesquisa = '';
+  $pesquisa = '';
 }
 
 // Criar a consulta SQL com parâmetro preparado para USUÁRIOS
@@ -189,6 +195,7 @@ $dados = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html lang="pt-br">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -207,13 +214,16 @@ $dados = $stmt->fetchAll(PDO::FETCH_ASSOC);
       width: 80%;
       padding: 20px;
     }
+
     .card-usuario {
       transition: transform 0.2s, box-shadow 0.2s;
     }
+
     .card-usuario:hover {
       transform: translateY(-5px);
-      box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
     }
+
     .usuario-imagem {
       width: 80px;
       height: 80px;
@@ -221,84 +231,22 @@ $dados = $stmt->fetchAll(PDO::FETCH_ASSOC);
       border-radius: 50%;
       border: 3px solid #28a745;
     }
+
     .badge-admin {
       background-color: #dc3545;
       color: white;
     }
   </style>
 </head>
+
 <body>
   <div class="dashboard-container">
-    <!-- Sidebar -->
-    <aside class="sidebar">
-      <div class="logo">
-        <a href="<?= $isAdmin ? '/SMCPA/paginas/dashboard/dashboardadm.php' : '/SMCPA/paginas/dashboard/dashboard.php'; ?>">
-          <img src="/SMCPA/imgs/logotrbf.png" alt="SMCPA Logo">
-        </a>
-      </div>
-
-      <nav class="menu-lateral">
-        <ul>
-          <li class="item-menu">
-            <a href="<?= $isAdmin ? '/SMCPA/paginas/dashboard/dashboardadm.php' : '/SMCPA/paginas/dashboard/dashboard.php'; ?>">
-              <span class="icon"><i class="fa-solid fa-home"></i></span>
-              <span class="txt-link">Home</span>
-            </a>
-          </li>
-          <li class="item-menu">
-            <a href="/SMCPA/paginas/cadastro/cadpraga.php">
-              <span class="icon"><i class="bi bi-columns-gap"></i></span>
-              <span class="txt-link">Cadastrar Pragas</span>
-            </a>
-          </li>
-          <li class="item-menu">
-            <a href="/SMCPA/paginas/cadastro/cadsurto.php">
-              <span class="icon"><i class="bi bi-exclamation-triangle"></i></span>
-              <span class="txt-link">Cadastrar Surtos</span>
-            </a>
-          </li>
-          <li class="item-menu">
-            <a href="/SMCPA/paginas/dashboard/filtros_pragas.php">
-              <span class="icon"><i class="bi bi-funnel"></i></span>
-              <span class="txt-link">Filtros de Pragas</span>
-            </a>
-          </li>
-          <?php if ($isAdmin): ?>
-          <li class="item-menu">
-            <a href="/SMCPA/paginas/dashboard/filtros_usuarios.php">
-              <span class="icon"><i class="bi bi-people"></i></span>
-              <span class="txt-link">Filtros de Usuários</span>
-            </a>
-          </li>
-          <?php endif; ?>
-          <li class="item-menu">
-            <a href="/SMCPA/paginas/dashboard/feedback.php">
-              <span class="icon"><i class="bi bi-chat-dots"></i></span>
-              <span class="txt-link">Feedback</span>
-            </a>
-          </li>
-          <li class="item-menu">
-            <a href="/SMCPA/paginas/dashboard/perfil.php">
-              <span class="icon"><i class="bi bi-person-lines-fill"></i></span>
-              <span class="txt-link">Conta</span>
-            </a>
-          </li>
-          <li class="item-menu">
-            <a href="/SMCPA/paginas/login/logout.php">
-              <span class="icon"><i class="bi bi-box-arrow-right"></i></span>
-              <span class="txt-link">Sair</span>
-            </a>
-          </li>
-        </ul>
-      </nav> 
-    </aside>
-
-    <!-- Main Content -->
+    <?php include_once(BASE_URL . '/includes/sidebar.php'); ?>
     <div class="tabela-container">
       <nav class="navbar bg-body-tertiary mb-4">
         <div class="container-fluid">
           <form class="d-flex" role="search" action="filtros_usuarios.php" method="post" style="flex: 1;">
-            <input class="form-control me-2" type="search" name="procurar" placeholder="Nome ou Email" aria-label="Procurar Usuário" value="<?= htmlspecialchars($pesquisa); ?>" autofocus/>
+            <input class="form-control me-2" type="search" name="procurar" placeholder="Nome ou Email" aria-label="Procurar Usuário" value="<?= htmlspecialchars($pesquisa); ?>" autofocus />
             <button class="btn btn-outline-success" type="submit">
               <i class="bi bi-search"></i> Procurar
             </button>
@@ -310,11 +258,11 @@ $dados = $stmt->fetchAll(PDO::FETCH_ASSOC);
           </form>
           <div class="d-flex gap-2 ms-3 align-items-center">
             <a href="perfil.php" style="text-decoration: none;">
-              <img src="<?= htmlspecialchars($imagemPerfil); ?>" 
-                   alt="Perfil do usuário" 
-                   class="rounded-circle" 
-                   style="width: 40px; height: 40px; object-fit: cover; border: 2px solid rgba(0,0,0,0.1); cursor: pointer;"
-                   onerror="this.src='/SMCPA/imgs/logotrbf.png'">
+              <img src="<?= htmlspecialchars($imagemPerfil); ?>"
+                alt="Perfil do usuário"
+                class="rounded-circle"
+                style="width: 40px; height: 40px; object-fit: cover; border: 2px solid rgba(0,0,0,0.1); cursor: pointer;"
+                onerror="this.src='/SMCPA/imgs/logotrbf.png'">
             </a>
           </div>
         </div>
@@ -334,24 +282,24 @@ $dados = $stmt->fetchAll(PDO::FETCH_ASSOC);
                   <div class="card-body text-center">
                     <div class="mb-3">
                       <?php if (!empty($user['Imagem'])): ?>
-                        <img src="/uploads/usuarios/<?= htmlspecialchars($user['Imagem']); ?>" 
-                             class="usuario-imagem" 
-                             alt="Foto de perfil"
-                             onerror="this.src='/SMCPA/imgs/logotrbf.png'">
+                        <img src="/uploads/usuarios/<?= htmlspecialchars($user['Imagem']); ?>"
+                          class="usuario-imagem"
+                          alt="Foto de perfil"
+                          onerror="this.src='/SMCPA/imgs/logotrbf.png'">
                       <?php else: ?>
-                        <img src="/SMCPA/imgs/logotrbf.png" 
-                             class="usuario-imagem" 
-                             alt="Sem foto">
+                        <img src="/SMCPA/imgs/logotrbf.png"
+                          class="usuario-imagem"
+                          alt="Sem foto">
                       <?php endif; ?>
                     </div>
-                    
+
                     <h5 class="card-title">
                       <?= htmlspecialchars($user['usuario']); ?>
                       <?php if (!empty($user['is_admin']) && $user['is_admin'] == 1): ?>
                         <span class="badge badge-admin ms-2">Admin</span>
                       <?php endif; ?>
                     </h5>
-                    
+
                     <p class="card-text">
                       <small class="text-muted">
                         <i class="bi bi-envelope"></i> <?= htmlspecialchars($user['email']); ?><br>
@@ -360,21 +308,21 @@ $dados = $stmt->fetchAll(PDO::FETCH_ASSOC);
                       </small>
                     </p>
                   </div>
-                  
+
                   <div class="card-footer bg-transparent border-top-0">
                     <div class="d-grid gap-2">
-                      <a href="perfil.php?id=<?= $user['id']; ?>" 
-                         class="btn btn-primary btn-sm">
+                      <a href="perfil.php?id=<?= $user['id']; ?>"
+                        class="btn btn-primary btn-sm">
                         <i class="bi bi-eye"></i> Ver Detalhes
                       </a>
                       <?php if ($isAdmin): ?>
-                      <form method="post" onsubmit="return confirm('Confirma a exclusão deste usuário? Esta ação não pode ser desfeita.');">
-                        <input type="hidden" name="action" value="delete_user">
-                        <input type="hidden" name="user_id" value="<?= $user['id']; ?>">
-                        <button type="submit" class="btn btn-danger btn-sm mt-2">
-                          <i class="bi bi-trash"></i> Excluir Usuário
-                        </button>
-                      </form>
+                        <form method="post" onsubmit="return confirm('Confirma a exclusão deste usuário? Esta ação não pode ser desfeita.');">
+                          <input type="hidden" name="action" value="delete_user">
+                          <input type="hidden" name="user_id" value="<?= $user['id']; ?>">
+                          <button type="submit" class="btn btn-danger btn-sm mt-2">
+                            <i class="bi bi-trash"></i> Excluir Usuário
+                          </button>
+                        </form>
                       <?php endif; ?>
                     </div>
                   </div>
@@ -384,7 +332,7 @@ $dados = $stmt->fetchAll(PDO::FETCH_ASSOC);
           </div>
         <?php else: ?>
           <div class="alert alert-info text-center">
-            <i class="bi bi-info-circle"></i> 
+            <i class="bi bi-info-circle"></i>
             <?php if (!empty($pesquisa)): ?>
               Nenhum usuário encontrado com o termo "<strong><?= htmlspecialchars($pesquisa); ?></strong>".
             <?php else: ?>
@@ -398,5 +346,5 @@ $dados = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
-</html>
 
+</html>

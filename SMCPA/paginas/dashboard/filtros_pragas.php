@@ -5,7 +5,7 @@ ini_set('session.cookie_domain', '');
 
 // Inicia a sessão para manter o login
 if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+  session_start();
 }
 
 // Headers para prevenir cache
@@ -15,16 +15,16 @@ header("Expires: 0");
 
 // Verifica se o usuário está logado
 if (!isset($_SESSION['usuario_id']) && !isset($_SESSION['id']) && !isset($_SESSION['logado'])) {
-    header("Location: /SMCPA/paginas/login/login.php");
-    exit;
+  header("Location: /SMCPA/paginas/login/login.php");
+  exit;
 }
 
 // Obter ID do usuário
 $usuarioID = $_SESSION['usuario_id'] ?? $_SESSION['id'] ?? null;
 
 // Incluir arquivos de conexão
-require_once('../../config.php'); 
-include_once(BASE_URL.'/database/conexao.php');
+require_once('../../config.php');
+include_once(BASE_URL . '/database/conexao.php');
 
 $db = new Database();
 $pdo = $db->conexao();
@@ -32,22 +32,21 @@ $pdo = $db->conexao();
 // Verificar se é administrador
 $isAdmin = false;
 if (isset($_SESSION['is_admin'])) {
-    $isAdmin = $_SESSION['is_admin'] == 1;
+  $isAdmin = $_SESSION['is_admin'] == 1;
 } else {
-    try {
-        $stmtAdmin = $pdo->prepare("SELECT is_admin FROM usuarios WHERE id = :id");
-        $stmtAdmin->bindParam(':id', $usuarioID, PDO::PARAM_INT);
-        $stmtAdmin->execute();
-        $userAdmin = $stmtAdmin->fetch(PDO::FETCH_ASSOC);
-        $isAdmin = ($userAdmin && isset($userAdmin['is_admin']) && $userAdmin['is_admin'] == 1);
-        $_SESSION['is_admin'] = $isAdmin ? 1 : 0;
-    } catch (PDOException $e) {
-      $isAdmin = false;
-    }
-
+  try {
+    $stmtAdmin = $pdo->prepare("SELECT is_admin FROM usuarios WHERE id = :id");
+    $stmtAdmin->bindParam(':id', $usuarioID, PDO::PARAM_INT);
+    $stmtAdmin->execute();
+    $userAdmin = $stmtAdmin->fetch(PDO::FETCH_ASSOC);
+    $isAdmin = ($userAdmin && isset($userAdmin['is_admin']) && $userAdmin['is_admin'] == 1);
+    $_SESSION['is_admin'] = $isAdmin ? 1 : 0;
+  } catch (PDOException $e) {
+    $isAdmin = false;
+  }
 }
 
-  // Buscar imagem do perfil do usuário
+// Buscar imagem do perfil do usuário
 // Processar exclusão de praga (somente administradores)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_praga') {
   if (!$isAdmin) {
@@ -67,8 +66,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
       // Remover arquivos de imagem associados
       foreach ($rows as $r) {
         if (!empty($r['Imagem_Not_Null'])) {
-          $filePath = $_SERVER['DOCUMENT_ROOT'].'/uploads/pragas/'. $r['Imagem_Not_Null'];
-          if (file_exists($filePath)) {@unlink($filePath);} 
+          $filePath = $_SERVER['DOCUMENT_ROOT'] . '/uploads/pragas/' . $r['Imagem_Not_Null'];
+          if (file_exists($filePath)) {
+            @unlink($filePath);
+          }
         }
       }
 
@@ -87,27 +88,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 $imagemPerfil = null;
 if ($usuarioID) {
-    try {
-        $stmtImagem = $pdo->prepare("SELECT Imagem FROM usuarios WHERE id = :id");
-        $stmtImagem->bindParam(':id', $usuarioID, PDO::PARAM_INT);
-        $stmtImagem->execute();
-        $resultado = $stmtImagem->fetch(PDO::FETCH_ASSOC);
-        if ($resultado && !empty($resultado['Imagem'])) {
-            $imagemPerfil = '/uploads/usuarios/' . $resultado['Imagem'];
-        }
-    } catch (PDOException $e) {
-        $imagemPerfil = null;
+  try {
+    $stmtImagem = $pdo->prepare("SELECT Imagem FROM usuarios WHERE id = :id");
+    $stmtImagem->bindParam(':id', $usuarioID, PDO::PARAM_INT);
+    $stmtImagem->execute();
+    $resultado = $stmtImagem->fetch(PDO::FETCH_ASSOC);
+    if ($resultado && !empty($resultado['Imagem'])) {
+      $imagemPerfil = '/uploads/usuarios/' . $resultado['Imagem'];
     }
+  } catch (PDOException $e) {
+    $imagemPerfil = null;
+  }
 }
 if (!$imagemPerfil) {
-    $imagemPerfil = '/SMCPA/imgs/logotrbf.png';
+  $imagemPerfil = '/SMCPA/imgs/logotrbf.png';
 }
 
 // ================== PESQUISA DE PRAGAS ==================
 if (isset($_POST['procurar_praga'])) {
-    $pesquisa_praga = $_POST['procurar_praga'];
+  $pesquisa_praga = $_POST['procurar_praga'];
 } else {
-    $pesquisa_praga = '';
+  $pesquisa_praga = '';
 }
 
 // Criar a consulta SQL com parâmetro preparado para PRAGAS
@@ -141,6 +142,7 @@ $lista = $stmtPragas->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html lang="pt-br">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -154,73 +156,13 @@ $lista = $stmtPragas->fetchAll(PDO::FETCH_ASSOC);
   <link rel="stylesheet" href="/SMCPA/css/dashboard.css">
   <title>Filtros de Pragas - SMCPA</title>
   <style>
-    
+
   </style>
 </head>
+
 <body>
   <div class="dashboard-container">
-    <!-- Sidebar -->
-    <aside class="sidebar">
-      <div class="logo">
-        <a href="<?= $isAdmin ? '/SMCPA/paginas/dashboard/dashboardadm.php' : '/SMCPA/paginas/dashboard/dashboard.php'; ?>">
-          <img src="/SMCPA/imgs/logotrbf.png" alt="SMCPA Logo">
-        </a>
-      </div>
-
-      <nav class="menu-lateral">
-        <ul>
-          <li class="item-menu">
-            <a href="<?= $isAdmin ? '/SMCPA/paginas/dashboard/dashboardadm.php' : '/SMCPA/paginas/dashboard/dashboard.php'; ?>">
-              <span class="icon"><i class="fa-solid fa-home"></i></span>
-              <span class="txt-link">Home</span>
-            </a>
-          </li>
-          <li class="item-menu">
-            <a href="/SMCPA/paginas/cadastro/cadpraga.php">
-              <span class="icon"><i class="bi bi-columns-gap"></i></span>
-              <span class="txt-link">Cadastrar Pragas</span>
-            </a>
-          </li>
-          <li class="item-menu">
-            <a href="/SMCPA/paginas/cadastro/cadsurto.php">
-              <span class="icon"><i class="bi bi-exclamation-triangle"></i></span>
-              <span class="txt-link">Cadastrar Surtos</span>
-            </a>
-          </li>
-          <li class="item-menu">
-            <a href="/SMCPA/paginas/dashboard/filtros_pragas.php">
-              <span class="icon"><i class="bi bi-funnel"></i></span>
-              <span class="txt-link">Filtros de Pragas</span>
-            </a>
-          </li>
-          <?php if ($isAdmin): ?>
-          <li class="item-menu">
-            <a href="/SMCPA/paginas/dashboard/filtros_usuarios.php">
-              <span class="icon"><i class="bi bi-people"></i></span>
-              <span class="txt-link">Filtros de Usuários</span>
-            </a>
-          </li>
-          <?php endif; ?>
-          <li class="item-menu">
-            <a href="/SMCPA/paginas/dashboard/feedback.php">
-              <span class="icon"><i class="bi bi-chat-dots"></i></span>
-              <span class="txt-link">Feedback</span>
-            </a>
-          </li>
-          <li class="item-menu">
-            <a href="/SMCPA/paginas/dashboard/perfil.php">
-              <span class="icon"><i class="bi bi-person-lines-fill"></i></span>
-              <span class="txt-link">Conta</span>
-            </a>
-          </li>
-          <li class="item-menu">
-            <a href="/SMCPA/paginas/login/logout.php">
-              <span class="icon"><i class="bi bi-box-arrow-right"></i></span>
-              <span class="txt-link">Sair</span>
-            </a>
-          </li>
-        </ul>
-      </nav> 
+    <?php include_once(BASE_URL . '/includes/sidebar.php'); ?>
     </aside>
 
     <!-- Main Content -->
@@ -228,7 +170,7 @@ $lista = $stmtPragas->fetchAll(PDO::FETCH_ASSOC);
       <nav class="navbar bg-body-tertiary mb-4">
         <div class="container-fluid">
           <form class="d-flex" role="search" action="filtros_pragas.php" method="post" style="flex: 1;">
-            <input class="form-control me-2" type="search" name="procurar_praga" placeholder="Nome, Planta ou Localidade" aria-label="Procurar Praga" value="<?= htmlspecialchars($pesquisa_praga); ?>" autofocus/>
+            <input class="form-control me-2" type="search" name="procurar_praga" placeholder="Nome, Planta ou Localidade" aria-label="Procurar Praga" value="<?= htmlspecialchars($pesquisa_praga); ?>" autofocus />
             <button class="btn btn-outline-success" type="submit">
               <i class="bi bi-search"></i> Procurar
             </button>
@@ -240,11 +182,11 @@ $lista = $stmtPragas->fetchAll(PDO::FETCH_ASSOC);
           </form>
           <div class="d-flex gap-2 ms-3 align-items-center">
             <a href="perfil.php" style="text-decoration: none;">
-              <img src="<?= htmlspecialchars($imagemPerfil); ?>" 
-                   alt="Perfil do usuário" 
-                   class="rounded-circle" 
-                   style="width: 40px; height: 40px; object-fit: cover; border: 2px solid rgba(0,0,0,0.1); cursor: pointer;"
-                   onerror="this.src='/SMCPA/imgs/logotrbf.png'">
+              <img src="<?= htmlspecialchars($imagemPerfil); ?>"
+                alt="Perfil do usuário"
+                class="rounded-circle"
+                style="width: 40px; height: 40px; object-fit: cover; border: 2px solid rgba(0,0,0,0.1); cursor: pointer;"
+                onerror="this.src='/SMCPA/imgs/logotrbf.png'">
             </a>
           </div>
         </div>
@@ -262,16 +204,16 @@ $lista = $stmtPragas->fetchAll(PDO::FETCH_ASSOC);
               <div class="col-md-6 col-lg-4">
                 <div class="card card-praga h-100 shadow-sm">
                   <?php if (!empty($praga['Imagem_Not_Null'])): ?>
-                    <img src="/uploads/pragas/<?= htmlspecialchars($praga['Imagem_Not_Null']); ?>" 
-                         class="praga-imagem" 
-                         alt="<?= htmlspecialchars($praga['Nome']); ?>"
-                         onerror="this.src='/SMCPA/imgs/logotrbf.png'">
+                    <img src="/uploads/pragas/<?= htmlspecialchars($praga['Imagem_Not_Null']); ?>"
+                      class="praga-imagem"
+                      alt="<?= htmlspecialchars($praga['Nome']); ?>"
+                      onerror="this.src='/SMCPA/imgs/logotrbf.png'">
                   <?php else: ?>
-                    <img src="/SMCPA/imgs/logotrbf.png" 
-                         class="praga-imagem" 
-                         alt="Sem imagem">
+                    <img src="/SMCPA/imgs/logotrbf.png"
+                      class="praga-imagem"
+                      alt="Sem imagem">
                   <?php endif; ?>
-                  
+
                   <div class="card-body">
                     <h5 class="card-title">
                       <i class="bi bi-bug text-danger"></i> <?= htmlspecialchars($praga['Nome']); ?>
@@ -289,27 +231,27 @@ $lista = $stmtPragas->fetchAll(PDO::FETCH_ASSOC);
                       </p>
                     <?php endif; ?>
                   </div>
-                  
+
                   <div class="card-footer bg-transparent border-top-0">
                     <div class="d-grid gap-2">
-                      <button type="button" 
-                              class="btn btn-primary btn-sm" 
-                              data-bs-toggle="modal" 
-                              data-bs-target="#modalRelatorio<?= $praga['ID']; ?>">
+                      <button type="button"
+                        class="btn btn-primary btn-sm"
+                        data-bs-toggle="modal"
+                        data-bs-target="#modalRelatorio<?= $praga['ID']; ?>">
                         <i class="bi bi-file-earmark-pdf"></i> Ver Relatório
                       </button>
-                      <a href="../detalhes/detalhes_praga.php?id=<?= $praga['ID']; ?>" 
-                         class="btn btn-outline-secondary btn-sm">
+                      <a href="../detalhes/detalhes_praga.php?id=<?= $praga['ID']; ?>"
+                        class="btn btn-outline-secondary btn-sm">
                         <i class="bi bi-eye"></i> Ver Detalhes
                       </a>
                       <?php if ($isAdmin): ?>
-                      <form method="post" onsubmit="return confirm('Confirma a exclusão desta praga? Esta ação não pode ser desfeita.');">
-                        <input type="hidden" name="action" value="delete_praga">
-                        <input type="hidden" name="praga_id" value="<?= $praga['ID']; ?>">
-                        <button type="submit" class="btn btn-danger btn-sm mt-2">
-                          <i class="bi bi-trash"></i> Excluir Praga
-                        </button>
-                      </form>
+                        <form method="post" onsubmit="return confirm('Confirma a exclusão desta praga? Esta ação não pode ser desfeita.');">
+                          <input type="hidden" name="action" value="delete_praga">
+                          <input type="hidden" name="praga_id" value="<?= $praga['ID']; ?>">
+                          <button type="submit" class="btn btn-danger btn-sm mt-2">
+                            <i class="bi bi-trash"></i> Excluir Praga
+                          </button>
+                        </form>
                       <?php endif; ?>
                     </div>
                   </div>
@@ -319,7 +261,7 @@ $lista = $stmtPragas->fetchAll(PDO::FETCH_ASSOC);
           </div>
         <?php else: ?>
           <div class="alert alert-info text-center">
-            <i class="bi bi-info-circle"></i> 
+            <i class="bi bi-info-circle"></i>
             <?php if (!empty($pesquisa_praga)): ?>
               Nenhuma praga encontrada com o termo "<strong><?= htmlspecialchars($pesquisa_praga); ?></strong>".
             <?php else: ?>
@@ -337,14 +279,14 @@ $lista = $stmtPragas->fetchAll(PDO::FETCH_ASSOC);
     // Buscar dados do usuário que cadastrou a praga
     $usuarioPraga = null;
     if (!empty($praga['ID_Usuario'])) {
-        try {
-            $stmtUsuario = $pdo->prepare("SELECT id, usuario, email FROM usuarios WHERE id = :id");
-            $stmtUsuario->bindParam(':id', $praga['ID_Usuario'], PDO::PARAM_INT);
-            $stmtUsuario->execute();
-            $usuarioPraga = $stmtUsuario->fetch(PDO::FETCH_ASSOC);
-        } catch (PDOException $e) {
-            $usuarioPraga = ['usuario' => 'Usuário', 'email' => ''];
-        }
+      try {
+        $stmtUsuario = $pdo->prepare("SELECT id, usuario, email FROM usuarios WHERE id = :id");
+        $stmtUsuario->bindParam(':id', $praga['ID_Usuario'], PDO::PARAM_INT);
+        $stmtUsuario->execute();
+        $usuarioPraga = $stmtUsuario->fetch(PDO::FETCH_ASSOC);
+      } catch (PDOException $e) {
+        $usuarioPraga = ['usuario' => 'Usuário', 'email' => ''];
+      }
     }
     $dataRelatorio = date('d/m/Y H:i:s');
     ?>
@@ -399,39 +341,39 @@ $lista = $stmtPragas->fetchAll(PDO::FETCH_ASSOC);
 
             <!-- Descrição -->
             <?php if (!empty($praga['Descricao'])): ?>
-            <div class="bg-light border-start border-success border-4 p-3 mb-3">
-              <h6><i class="bi bi-file-text"></i> Descrição</h6>
-              <p class="mb-0"><?= nl2br(htmlspecialchars($praga['Descricao'])); ?></p>
-            </div>
+              <div class="bg-light border-start border-success border-4 p-3 mb-3">
+                <h6><i class="bi bi-file-text"></i> Descrição</h6>
+                <p class="mb-0"><?= nl2br(htmlspecialchars($praga['Descricao'])); ?></p>
+              </div>
             <?php endif; ?>
 
             <!-- Imagem da Praga -->
             <?php if (!empty($praga['Imagem_Not_Null'])): ?>
-            <div class="text-center mb-3">
-              <h6><i class="bi bi-image"></i> Imagem da Praga</h6>
-              <img src="/uploads/pragas/<?= htmlspecialchars($praga['Imagem_Not_Null']); ?>" 
-                   alt="Imagem da praga <?= htmlspecialchars($praga['Nome']); ?>" 
-                   class="img-fluid rounded shadow-sm"
-                   style="max-height: 300px;"
-                   onerror="this.src='/SMCPA/imgs/logotrbf.png'">
-            </div>
+              <div class="text-center mb-3">
+                <h6><i class="bi bi-image"></i> Imagem da Praga</h6>
+                <img src="/uploads/pragas/<?= htmlspecialchars($praga['Imagem_Not_Null']); ?>"
+                  alt="Imagem da praga <?= htmlspecialchars($praga['Nome']); ?>"
+                  class="img-fluid rounded shadow-sm"
+                  style="max-height: 300px;"
+                  onerror="this.src='/SMCPA/imgs/logotrbf.png'">
+              </div>
             <?php endif; ?>
 
             <!-- Observações -->
             <?php if (!empty($praga['Observacoes'])): ?>
-            <div class="bg-light border-start border-success border-4 p-3 mb-3">
-              <h6><i class="bi bi-journal-text"></i> Observações</h6>
-              <p class="mb-0"><?= nl2br(htmlspecialchars($praga['Observacoes'])); ?></p>
-            </div>
+              <div class="bg-light border-start border-success border-4 p-3 mb-3">
+                <h6><i class="bi bi-journal-text"></i> Observações</h6>
+                <p class="mb-0"><?= nl2br(htmlspecialchars($praga['Observacoes'])); ?></p>
+              </div>
             <?php endif; ?>
 
             <!-- Informações do Usuário -->
             <?php if ($usuarioPraga): ?>
-            <div class="bg-light border-start border-success border-4 p-3 mb-3">
-              <h6><i class="bi bi-person"></i> Informações do Responsável</h6>
-              <p class="mb-1"><strong>Nome:</strong> <?= htmlspecialchars($usuarioPraga['usuario'] ?? 'N/A'); ?></p>
-              <p class="mb-0"><strong>Email:</strong> <?= htmlspecialchars($usuarioPraga['email'] ?? 'N/A'); ?></p>
-            </div>
+              <div class="bg-light border-start border-success border-4 p-3 mb-3">
+                <h6><i class="bi bi-person"></i> Informações do Responsável</h6>
+                <p class="mb-1"><strong>Nome:</strong> <?= htmlspecialchars($usuarioPraga['usuario'] ?? 'N/A'); ?></p>
+                <p class="mb-0"><strong>Email:</strong> <?= htmlspecialchars($usuarioPraga['email'] ?? 'N/A'); ?></p>
+              </div>
             <?php endif; ?>
 
             <!-- Rodapé -->
@@ -453,4 +395,5 @@ $lista = $stmtPragas->fetchAll(PDO::FETCH_ASSOC);
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
+
 </html>

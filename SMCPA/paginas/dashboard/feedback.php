@@ -5,7 +5,7 @@ ini_set('session.cookie_domain', '');
 
 // Inicia a sessão para manter o login
 if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+  session_start();
 }
 
 // Headers para prevenir cache
@@ -15,16 +15,16 @@ header("Expires: 0");
 
 // Verifica se o usuário está logado
 if (!isset($_SESSION['usuario_id']) && !isset($_SESSION['id']) && !isset($_SESSION['logado'])) {
-    header("Location: /SMCPA/paginas/login/login.php");
-    exit;
+  header("Location: /SMCPA/paginas/login/login.php");
+  exit;
 }
 
 // Obter ID do usuário
 $usuarioID = $_SESSION['usuario_id'] ?? $_SESSION['id'] ?? null;
 
 // Incluir arquivos de conexão
-require_once('../../config.php'); 
-include_once(BASE_URL.'/database/conexao.php');
+require_once('../../config.php');
+include_once(BASE_URL . '/database/conexao.php');
 
 $db = new Database();
 $pdo = $db->conexao();
@@ -32,55 +32,55 @@ $pdo = $db->conexao();
 // Verificar se é administrador
 $isAdmin = false;
 if (isset($_SESSION['is_admin'])) {
-    $isAdmin = $_SESSION['is_admin'] == 1;
+  $isAdmin = $_SESSION['is_admin'] == 1;
 } else {
-    try {
-        $stmtAdmin = $pdo->prepare("SELECT is_admin FROM usuarios WHERE id = :id");
-        $stmtAdmin->bindParam(':id', $usuarioID, PDO::PARAM_INT);
-        $stmtAdmin->execute();
-        $userAdmin = $stmtAdmin->fetch(PDO::FETCH_ASSOC);
-        $isAdmin = ($userAdmin && isset($userAdmin['is_admin']) && $userAdmin['is_admin'] == 1);
-        $_SESSION['is_admin'] = $isAdmin ? 1 : 0;
-    } catch (PDOException $e) {
-        $isAdmin = false;
-    }
+  try {
+    $stmtAdmin = $pdo->prepare("SELECT is_admin FROM usuarios WHERE id = :id");
+    $stmtAdmin->bindParam(':id', $usuarioID, PDO::PARAM_INT);
+    $stmtAdmin->execute();
+    $userAdmin = $stmtAdmin->fetch(PDO::FETCH_ASSOC);
+    $isAdmin = ($userAdmin && isset($userAdmin['is_admin']) && $userAdmin['is_admin'] == 1);
+    $_SESSION['is_admin'] = $isAdmin ? 1 : 0;
+  } catch (PDOException $e) {
+    $isAdmin = false;
+  }
 }
 
 // Buscar dados do usuário
 $nomeUsuario = '';
 $emailUsuario = '';
 if ($usuarioID) {
-    try {
-        $stmtUsuario = $pdo->prepare("SELECT usuario, email FROM usuarios WHERE id = :id");
-        $stmtUsuario->bindParam(':id', $usuarioID, PDO::PARAM_INT);
-        $stmtUsuario->execute();
-        $user = $stmtUsuario->fetch(PDO::FETCH_ASSOC);
-        if ($user) {
-            $nomeUsuario = $user['usuario'] ?? '';
-            $emailUsuario = $user['email'] ?? '';
-        }
-    } catch (PDOException $e) {
-        // Ignorar erro
+  try {
+    $stmtUsuario = $pdo->prepare("SELECT usuario, email FROM usuarios WHERE id = :id");
+    $stmtUsuario->bindParam(':id', $usuarioID, PDO::PARAM_INT);
+    $stmtUsuario->execute();
+    $user = $stmtUsuario->fetch(PDO::FETCH_ASSOC);
+    if ($user) {
+      $nomeUsuario = $user['usuario'] ?? '';
+      $emailUsuario = $user['email'] ?? '';
     }
+  } catch (PDOException $e) {
+    // Ignorar erro
+  }
 }
 
 // Buscar imagem do perfil do usuário
 $imagemPerfil = null;
 if ($usuarioID) {
-    try {
-        $stmtImagem = $pdo->prepare("SELECT Imagem FROM usuarios WHERE id = :id");
-        $stmtImagem->bindParam(':id', $usuarioID, PDO::PARAM_INT);
-        $stmtImagem->execute();
-        $resultado = $stmtImagem->fetch(PDO::FETCH_ASSOC);
-        if ($resultado && !empty($resultado['Imagem'])) {
-            $imagemPerfil = '/uploads/usuarios/' . $resultado['Imagem'];
-        }
-    } catch (PDOException $e) {
-        $imagemPerfil = null;
+  try {
+    $stmtImagem = $pdo->prepare("SELECT Imagem FROM usuarios WHERE id = :id");
+    $stmtImagem->bindParam(':id', $usuarioID, PDO::PARAM_INT);
+    $stmtImagem->execute();
+    $resultado = $stmtImagem->fetch(PDO::FETCH_ASSOC);
+    if ($resultado && !empty($resultado['Imagem'])) {
+      $imagemPerfil = '/uploads/usuarios/' . $resultado['Imagem'];
     }
+  } catch (PDOException $e) {
+    $imagemPerfil = null;
+  }
 }
 if (!$imagemPerfil) {
-    $imagemPerfil = '/SMCPA/imgs/logotrbf.png';
+  $imagemPerfil = '/SMCPA/imgs/logotrbf.png';
 }
 
 // A tabela Feedback já existe no banco de dados conforme o script SQL do projeto
@@ -93,67 +93,68 @@ $tipo = '';
 $mensagem = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['enviar_feedback'])) {
-    $tipo = trim($_POST['tipo'] ?? '');
-    $mensagem = trim($_POST['mensagem'] ?? '');
-    
-    // Validação básica
-    if (empty($usuarioID)) {
-        $mensagemErro = 'Erro: Usuário não identificado. Por favor, faça login novamente.';
-    } elseif (empty($tipo)) {
-        $mensagemErro = 'Por favor, selecione o tipo de feedback.';
-    } elseif (empty($mensagem)) {
-        $mensagemErro = 'Por favor, preencha a mensagem.';
-    } elseif (strlen($mensagem) < 10) {
-        $mensagemErro = 'A mensagem deve ter pelo menos 10 caracteres.';
-    } elseif (strlen($mensagem) > 2000) {
-        $mensagemErro = 'A mensagem não pode exceder 2000 caracteres.';
-    } else {
-        try {
-            // Adaptado para a estrutura do banco: tabela Feedback com campo Usuario
-            // Incluindo o tipo de feedback na mensagem já que a tabela não tem campo Tipo separado
-            $mensagemCompleta = "[Tipo: " . ucfirst($tipo) . "]\n\n" . $mensagem;
-            
-            // Preparar e executar inserção usando a estrutura correta do banco
-            $stmt = $pdo->prepare("INSERT INTO Feedback (Usuario, Mensagem) 
+  $tipo = trim($_POST['tipo'] ?? '');
+  $mensagem = trim($_POST['mensagem'] ?? '');
+
+  // Validação básica
+  if (empty($usuarioID)) {
+    $mensagemErro = 'Erro: Usuário não identificado. Por favor, faça login novamente.';
+  } elseif (empty($tipo)) {
+    $mensagemErro = 'Por favor, selecione o tipo de feedback.';
+  } elseif (empty($mensagem)) {
+    $mensagemErro = 'Por favor, preencha a mensagem.';
+  } elseif (strlen($mensagem) < 10) {
+    $mensagemErro = 'A mensagem deve ter pelo menos 10 caracteres.';
+  } elseif (strlen($mensagem) > 2000) {
+    $mensagemErro = 'A mensagem não pode exceder 2000 caracteres.';
+  } else {
+    try {
+      // Adaptado para a estrutura do banco: tabela Feedback com campo Usuario
+      // Incluindo o tipo de feedback na mensagem já que a tabela não tem campo Tipo separado
+      $mensagemCompleta = "[Tipo: " . ucfirst($tipo) . "]\n\n" . $mensagem;
+
+      // Preparar e executar inserção usando a estrutura correta do banco
+      $stmt = $pdo->prepare("INSERT INTO Feedback (Usuario, Mensagem) 
                                    VALUES (:usuario_id, :mensagem)");
-            $stmt->bindParam(':usuario_id', $usuarioID, PDO::PARAM_INT);
-            $stmt->bindParam(':mensagem', $mensagemCompleta, PDO::PARAM_STR);
-            
-            if ($stmt->execute()) {
-                $mensagemSucesso = 'Feedback enviado com sucesso! Obrigado pela sua contribuição.';
-                // Limpar campos do formulário
-                $tipo = '';
-                $mensagem = '';
-            } else {
-                $mensagemErro = 'Erro ao enviar feedback. Por favor, tente novamente.';
-            }
-        } catch (PDOException $e) {
-            // Exibir erro detalhado para ajudar no debug
-            $errorCode = $e->getCode();
-            $errorMsg = $e->getMessage();
-            
-            // Log do erro completo
-            error_log("Erro ao inserir feedback [Código: $errorCode]: " . $errorMsg);
-            
-            // Mensagens amigáveis baseadas no tipo de erro
-            if (strpos($errorMsg, 'Table') !== false && (strpos($errorMsg, 'doesn\'t exist') !== false || strpos($errorMsg, 'doesn\'t exist') !== false)) {
-                $mensagemErro = 'Erro: A tabela Feedback não existe no banco de dados. Por favor, execute o script SQL do projeto ou entre em contato com o administrador.';
-            } elseif (strpos($errorMsg, 'foreign key') !== false || strpos($errorMsg, 'constraint') !== false || strpos($errorMsg, 'Usuario') !== false) {
-                $mensagemErro = 'Erro: ID de usuário inválido. Por favor, faça login novamente.';
-            } else {
-                $mensagemErro = 'Erro ao enviar feedback: ' . htmlspecialchars($errorMsg) . 
-                               '. Por favor, tente novamente ou entre em contato com o suporte.';
-            }
-        } catch (Exception $e) {
-            $mensagemErro = 'Erro inesperado: ' . htmlspecialchars($e->getMessage()) . 
-                           '. Por favor, tente novamente.';
-            error_log("Erro inesperado ao inserir feedback: " . $e->getMessage());
-        }
+      $stmt->bindParam(':usuario_id', $usuarioID, PDO::PARAM_INT);
+      $stmt->bindParam(':mensagem', $mensagemCompleta, PDO::PARAM_STR);
+
+      if ($stmt->execute()) {
+        $mensagemSucesso = 'Feedback enviado com sucesso! Obrigado pela sua contribuição.';
+        // Limpar campos do formulário
+        $tipo = '';
+        $mensagem = '';
+      } else {
+        $mensagemErro = 'Erro ao enviar feedback. Por favor, tente novamente.';
+      }
+    } catch (PDOException $e) {
+      // Exibir erro detalhado para ajudar no debug
+      $errorCode = $e->getCode();
+      $errorMsg = $e->getMessage();
+
+      // Log do erro completo
+      error_log("Erro ao inserir feedback [Código: $errorCode]: " . $errorMsg);
+
+      // Mensagens amigáveis baseadas no tipo de erro
+      if (strpos($errorMsg, 'Table') !== false && (strpos($errorMsg, 'doesn\'t exist') !== false || strpos($errorMsg, 'doesn\'t exist') !== false)) {
+        $mensagemErro = 'Erro: A tabela Feedback não existe no banco de dados. Por favor, execute o script SQL do projeto ou entre em contato com o administrador.';
+      } elseif (strpos($errorMsg, 'foreign key') !== false || strpos($errorMsg, 'constraint') !== false || strpos($errorMsg, 'Usuario') !== false) {
+        $mensagemErro = 'Erro: ID de usuário inválido. Por favor, faça login novamente.';
+      } else {
+        $mensagemErro = 'Erro ao enviar feedback: ' . htmlspecialchars($errorMsg) .
+          '. Por favor, tente novamente ou entre em contato com o suporte.';
+      }
+    } catch (Exception $e) {
+      $mensagemErro = 'Erro inesperado: ' . htmlspecialchars($e->getMessage()) .
+        '. Por favor, tente novamente.';
+      error_log("Erro inesperado ao inserir feedback: " . $e->getMessage());
     }
+  }
 }
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -168,70 +169,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['enviar_feedback'])) {
   <link rel="stylesheet" href="/SMCPA/css/dashboard.css">
   <link rel="stylesheet" href="/SMCPA/css/feedback.css">
 </head>
+
 <body>
   <div class="dashboard-container">
-    <!-- Sidebar (Menu Lateral) -->
-    <aside class="sidebar">
-      <div class="logo">
-        <a href="<?= $isAdmin ? '/SMCPA/paginas/dashboard/dashboardadm.php' : '/SMCPA/paginas/dashboard/dashboard.php'; ?>">
-          <img src="/SMCPA/imgs/logotrbf.png" alt="SMCPA Logo">
-        </a>
-      </div>
-
-      <nav class="menu-lateral">
-        <ul>
-          <li class="item-menu">
-            <a href="<?= $isAdmin ? '/SMCPA/paginas/dashboard/dashboardadm.php' : '/SMCPA/paginas/dashboard/dashboard.php'; ?>">
-              <span class="icon"><i class="fa-solid fa-home"></i></span>
-              <span class="txt-link">Home</span>
-            </a>
-          </li>
-          <li class="item-menu">
-            <a href="/SMCPA/paginas/cadastro/cadpraga.php">
-              <span class="icon"><i class="bi bi-columns-gap"></i></span>
-              <span class="txt-link">Cadastrar Pragas</span>
-            </a>
-          </li>
-          <li class="item-menu">
-            <a href="/SMCPA/paginas/cadastro/cadsurto.php">
-              <span class="icon"><i class="bi bi-exclamation-triangle"></i></span>
-              <span class="txt-link">Cadastrar Surtos</span>
-            </a>
-          </li>
-          <li class="item-menu">
-            <a href="/SMCPA/paginas/dashboard/filtros_pragas.php">
-              <span class="icon"><i class="bi bi-funnel"></i></span>
-              <span class="txt-link">Filtros de Pragas</span>
-            </a>
-          </li>
-          <?php if ($isAdmin): ?>
-          <li class="item-menu">
-            <a href="/SMCPA/paginas/dashboard/filtros_usuarios.php">
-              <span class="icon"><i class="bi bi-people"></i></span>
-              <span class="txt-link">Filtros de Usuários</span>
-            </a>
-          </li>
-          <?php endif; ?>
-          <li class="item-menu">
-            <a href="/SMCPA/paginas/dashboard/feedback.php">
-              <span class="icon"><i class="bi bi-chat-dots"></i></span>
-              <span class="txt-link">Feedback</span>
-            </a>
-          </li>
-          <li class="item-menu">
-            <a href="/SMCPA/paginas/dashboard/perfil.php">
-              <span class="icon"><i class="bi bi-person-lines-fill"></i></span>
-              <span class="txt-link">Conta</span>
-            </a>
-          </li>
-          <li class="item-menu">
-            <a href="/SMCPA/paginas/login/logout.php">
-              <span class="icon"><i class="bi bi-box-arrow-right"></i></span>
-              <span class="txt-link">Sair</span>
-            </a>
-          </li>
-        </ul>
-      </nav>
+    <?php include_once(BASE_URL . '/includes/sidebar.php'); ?>
     </aside>
 
     <!-- Main Content -->
@@ -244,11 +185,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['enviar_feedback'])) {
             <i class="fa-solid fa-book"></i> Tutoriais
           </a>
           <a href="./perfil.php" style="text-decoration: none;">
-            <img src="<?= htmlspecialchars($imagemPerfil); ?>" 
-                 alt="Perfil do usuário" 
-                 class="rounded-circle" 
-                 style="width: 40px; height: 40px; object-fit: cover; border: 2px solid rgba(255,255,255,0.3); cursor: pointer;"
-                 onerror="this.src='/SMCPA/imgs/logotrbf.png'">
+            <img src="<?= htmlspecialchars($imagemPerfil); ?>"
+              alt="Perfil do usuário"
+              class="rounded-circle"
+              style="width: 40px; height: 40px; object-fit: cover; border: 2px solid rgba(255,255,255,0.3); cursor: pointer;"
+              onerror="this.src='/SMCPA/imgs/logotrbf.png'">
           </a>
         </div>
       </header>
@@ -310,9 +251,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['enviar_feedback'])) {
                 <label for="mensagem" class="form-label">
                   <i class="bi bi-chat-left-text"></i> Mensagem <span class="text-danger">*</span>
                 </label>
-                <textarea class="form-control" id="mensagem" name="mensagem" rows="8" 
-                          placeholder="Descreva seu feedback de forma detalhada. Quanto mais informações, melhor poderemos ajudá-lo!" 
-                          required minlength="10"><?= isset($mensagem) ? htmlspecialchars($mensagem) : ''; ?></textarea>
+                <textarea class="form-control" id="mensagem" name="mensagem" rows="8"
+                  placeholder="Descreva seu feedback de forma detalhada. Quanto mais informações, melhor poderemos ajudá-lo!"
+                  required minlength="10"><?= isset($mensagem) ? htmlspecialchars($mensagem) : ''; ?></textarea>
                 <small class="form-text text-muted">Mínimo de 10 caracteres</small>
                 <div class="char-count">
                   <span id="charCount">0</span> / 2000 caracteres
@@ -357,12 +298,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['enviar_feedback'])) {
     // Contador de caracteres
     const mensagem = document.getElementById('mensagem');
     const charCount = document.getElementById('charCount');
-    
+
     if (mensagem && charCount) {
       mensagem.addEventListener('input', function() {
         const length = this.value.length;
         charCount.textContent = length;
-        
+
         if (length > 2000) {
           charCount.style.color = '#dc3545';
           this.value = this.value.substring(0, 2000);
@@ -373,7 +314,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['enviar_feedback'])) {
           charCount.style.color = '#6c757d';
         }
       });
-      
+
       // Atualizar contador ao carregar página
       charCount.textContent = mensagem.value.length;
     }
@@ -387,5 +328,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['enviar_feedback'])) {
     <?php endif; ?>
   </script>
 </body>
-</html>
 
+</html>

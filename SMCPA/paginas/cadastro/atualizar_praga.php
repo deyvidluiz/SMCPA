@@ -150,7 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
 
             $dashboardUrl = "../dashboard/dashboard.php";
             try {
-                $stmtCheckAdmin = $pdo->prepare("SELECT is_admin FROM usuarios WHERE id = :id");
+                $stmtCheckAdmin = $pdo->prepare("SELECT is_admin FROM Usuarios WHERE id = :id");
                 $stmtCheckAdmin->bindParam(':id', $usuarioID, PDO::PARAM_INT);
                 $stmtCheckAdmin->execute();
                 $adminResult = $stmtCheckAdmin->fetch(PDO::FETCH_ASSOC);

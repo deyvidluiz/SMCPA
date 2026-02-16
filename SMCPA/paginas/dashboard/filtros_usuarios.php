@@ -48,7 +48,7 @@ if (isset($_SESSION['is_admin'])) {
   $isAdmin = $_SESSION['is_admin'] == 1;
 } else {
   try {
-    $stmtAdmin = $pdo->prepare("SELECT is_admin FROM usuarios WHERE id = :id");
+    $stmtAdmin = $pdo->prepare("SELECT is_admin FROM Usuarios WHERE id = :id");
     $stmtAdmin->bindParam(':id', $usuarioID, PDO::PARAM_INT);
     $stmtAdmin->execute();
     $userAdmin = $stmtAdmin->fetch(PDO::FETCH_ASSOC);
@@ -128,7 +128,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
       $stmtDelAll->execute();
 
       // Buscar imagem do usuário e remover
-      $stmtImg = $pdo->prepare("SELECT Imagem FROM usuarios WHERE id = :id");
+      $stmtImg = $pdo->prepare("SELECT Imagem FROM Usuarios WHERE id = :id");
       $stmtImg->bindParam(':id', $delUserId, PDO::PARAM_INT);
       $stmtImg->execute();
       $rowImg = $stmtImg->fetch(PDO::FETCH_ASSOC);
@@ -140,7 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
       }
 
       // Finalmente: excluir o usuário
-      $stmtDel = $pdo->prepare("DELETE FROM usuarios WHERE id = :id");
+      $stmtDel = $pdo->prepare("DELETE FROM Usuarios WHERE id = :id");
       $stmtDel->bindParam(':id', $delUserId, PDO::PARAM_INT);
       $stmtDel->execute();
       header('Location: filtros_usuarios.php?msg=usuario_excluido');
@@ -156,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 $imagemPerfil = null;
 if ($usuarioID) {
   try {
-    $stmtImagem = $pdo->prepare("SELECT Imagem FROM usuarios WHERE id = :id");
+    $stmtImagem = $pdo->prepare("SELECT Imagem FROM Usuarios WHERE id = :id");
     $stmtImagem->bindParam(':id', $usuarioID, PDO::PARAM_INT);
     $stmtImagem->execute();
     $resultado = $stmtImagem->fetch(PDO::FETCH_ASSOC);
@@ -180,7 +180,7 @@ if (isset($_POST['procurar'])) {
 
 // Criar a consulta SQL com parâmetro preparado para USUÁRIOS
 $sql = "SELECT id, usuario, email, senha, data_cadastro, Imagem, is_admin 
-        FROM usuarios 
+        FROM Usuarios 
         WHERE usuario LIKE :pesquisa OR email LIKE :pesquisaEmail
         ORDER BY id DESC";
 

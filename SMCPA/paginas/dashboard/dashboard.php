@@ -36,7 +36,7 @@ if (isset($_SESSION['is_admin'])) {
   $isAdmin = $_SESSION['is_admin'] == 1;
 } else {
   try {
-    $stmtAdmin = $pdo->prepare("SELECT is_admin FROM usuarios WHERE id = :id");
+    $stmtAdmin = $pdo->prepare("SELECT is_admin FROM Usuarios WHERE id = :id");
     $stmtAdmin->bindParam(':id', $usuarioID, PDO::PARAM_INT);
     $stmtAdmin->execute();
     $userAdmin = $stmtAdmin->fetch(PDO::FETCH_ASSOC);
@@ -51,7 +51,7 @@ if (isset($_SESSION['is_admin'])) {
 $imagemPerfil = null;
 if ($usuarioID) {
   try {
-    $stmtImagem = $pdo->prepare("SELECT Imagem FROM usuarios WHERE id = :id");
+    $stmtImagem = $pdo->prepare("SELECT Imagem FROM Usuarios WHERE id = :id");
     $stmtImagem->bindParam(':id', $usuarioID, PDO::PARAM_INT);
     $stmtImagem->execute();
     $resultado = $stmtImagem->fetch(PDO::FETCH_ASSOC);
@@ -86,18 +86,18 @@ $localidadeUsuario = 'Região não especificada';
 try {
   // Verificar se a coluna localizacao existe
   try {
-    $stmtCheck = $pdo->query("SHOW COLUMNS FROM usuarios LIKE 'localizacao'");
+    $stmtCheck = $pdo->query("SHOW COLUMNS FROM Usuarios LIKE 'localizacao'");
     $colunaExiste = $stmtCheck->rowCount() > 0;
 
     if (!$colunaExiste) {
-      $pdo->exec("ALTER TABLE usuarios ADD COLUMN localizacao VARCHAR(255) DEFAULT NULL");
+      $pdo->exec("ALTER TABLE Usuarios ADD COLUMN localizacao VARCHAR(255) DEFAULT NULL");
     }
   } catch (PDOException $e) {
     // Ignorar erro - coluna provavelmente já existe
   }
 
   // Buscar localização do usuário no cadastro
-  $stmtLocalizacao = $pdo->prepare("SELECT localizacao FROM usuarios WHERE id = :usuarioID");
+  $stmtLocalizacao = $pdo->prepare("SELECT localizacao FROM Usuarios WHERE id = :usuarioID");
   $stmtLocalizacao->bindParam(':usuarioID', $usuarioID, PDO::PARAM_INT);
   $stmtLocalizacao->execute();
   $resultadoLocalizacao = $stmtLocalizacao->fetch(PDO::FETCH_ASSOC);
@@ -543,7 +543,7 @@ try {
         SELECT a.ID, a.ID_Praga, a.Nome_Praga, a.Localidade, a.Data_Criacao,
                u.usuario as Usuario_Origem, ps.Planta_Hospedeira
         FROM alertas_pragas a
-        LEFT JOIN usuarios u ON a.ID_Usuario_Origem = u.id
+        LEFT JOIN Usuarios u ON a.ID_Usuario_Origem = u.id
         LEFT JOIN Pragas_Surtos ps ON a.ID_Praga = ps.ID
         WHERE a.ID_Usuario_Destino = :usuarioID 
         AND a.Lido = 0

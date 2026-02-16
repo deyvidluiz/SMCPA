@@ -48,7 +48,7 @@ if (isset($_SESSION['is_admin'])) {
     $isAdmin = $_SESSION['is_admin'] == 1;
 } else {
     try {
-        $stmtAdmin = $pdo->prepare("SELECT is_admin FROM usuarios WHERE id = :id");
+        $stmtAdmin = $pdo->prepare("SELECT is_admin FROM Usuarios WHERE id = :id");
         $stmtAdmin->bindParam(':id', $usuarioID, PDO::PARAM_INT);
         $stmtAdmin->execute();
         $userAdmin = $stmtAdmin->fetch(PDO::FETCH_ASSOC);
@@ -85,7 +85,7 @@ try {
         // Primeiro buscar a localização do usuário
         $localidadeUsuario = '';
         try {
-            $stmtLocalizacao = $pdo->prepare("SELECT localizacao FROM usuarios WHERE id = :usuarioID");
+            $stmtLocalizacao = $pdo->prepare("SELECT localizacao FROM Usuarios WHERE id = :usuarioID");
             $stmtLocalizacao->bindParam(':usuarioID', $usuarioID, PDO::PARAM_INT);
             $stmtLocalizacao->execute();
             $resultadoLocalizacao = $stmtLocalizacao->fetch(PDO::FETCH_ASSOC);
@@ -139,7 +139,7 @@ try {
 // Buscar dados do usuário que cadastrou a praga (não necessariamente o usuário logado)
 $usuarioPragaID = $praga['ID_Usuario'] ?? $usuarioID;
 try {
-    $stmtUsuario = $pdo->prepare("SELECT id, usuario, email FROM usuarios WHERE id = :id");
+    $stmtUsuario = $pdo->prepare("SELECT id, usuario, email FROM Usuarios WHERE id = :id");
     $stmtUsuario->bindParam(':id', $usuarioPragaID, PDO::PARAM_INT);
     $stmtUsuario->execute();
     $usuario = $stmtUsuario->fetch(PDO::FETCH_ASSOC);

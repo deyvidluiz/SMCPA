@@ -35,7 +35,7 @@ if (isset($_SESSION['is_admin'])) {
   $isAdmin = $_SESSION['is_admin'] == 1;
 } else {
   try {
-    $stmtAdmin = $pdo->prepare("SELECT is_admin FROM usuarios WHERE id = :id");
+    $stmtAdmin = $pdo->prepare("SELECT is_admin FROM Usuarios WHERE id = :id");
     $stmtAdmin->bindParam(':id', $usuarioID, PDO::PARAM_INT);
     $stmtAdmin->execute();
     $userAdmin = $stmtAdmin->fetch(PDO::FETCH_ASSOC);
@@ -89,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 $imagemPerfil = null;
 if ($usuarioID) {
   try {
-    $stmtImagem = $pdo->prepare("SELECT Imagem FROM usuarios WHERE id = :id");
+    $stmtImagem = $pdo->prepare("SELECT Imagem FROM Usuarios WHERE id = :id");
     $stmtImagem->bindParam(':id', $usuarioID, PDO::PARAM_INT);
     $stmtImagem->execute();
     $resultado = $stmtImagem->fetch(PDO::FETCH_ASSOC);
@@ -280,7 +280,7 @@ $lista = $stmtPragas->fetchAll(PDO::FETCH_ASSOC);
     $usuarioPraga = null;
     if (!empty($praga['ID_Usuario'])) {
       try {
-        $stmtUsuario = $pdo->prepare("SELECT id, usuario, email FROM usuarios WHERE id = :id");
+        $stmtUsuario = $pdo->prepare("SELECT id, usuario, email FROM Usuarios WHERE id = :id");
         $stmtUsuario->bindParam(':id', $praga['ID_Usuario'], PDO::PARAM_INT);
         $stmtUsuario->execute();
         $usuarioPraga = $stmtUsuario->fetch(PDO::FETCH_ASSOC);

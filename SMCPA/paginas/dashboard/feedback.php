@@ -35,7 +35,7 @@ if (isset($_SESSION['is_admin'])) {
   $isAdmin = $_SESSION['is_admin'] == 1;
 } else {
   try {
-    $stmtAdmin = $pdo->prepare("SELECT is_admin FROM usuarios WHERE id = :id");
+    $stmtAdmin = $pdo->prepare("SELECT is_admin FROM Usuarios WHERE id = :id");
     $stmtAdmin->bindParam(':id', $usuarioID, PDO::PARAM_INT);
     $stmtAdmin->execute();
     $userAdmin = $stmtAdmin->fetch(PDO::FETCH_ASSOC);
@@ -51,7 +51,7 @@ $nomeUsuario = '';
 $emailUsuario = '';
 if ($usuarioID) {
   try {
-    $stmtUsuario = $pdo->prepare("SELECT usuario, email FROM usuarios WHERE id = :id");
+    $stmtUsuario = $pdo->prepare("SELECT usuario, email FROM Usuarios WHERE id = :id");
     $stmtUsuario->bindParam(':id', $usuarioID, PDO::PARAM_INT);
     $stmtUsuario->execute();
     $user = $stmtUsuario->fetch(PDO::FETCH_ASSOC);
@@ -68,7 +68,7 @@ if ($usuarioID) {
 $imagemPerfil = null;
 if ($usuarioID) {
   try {
-    $stmtImagem = $pdo->prepare("SELECT Imagem FROM usuarios WHERE id = :id");
+    $stmtImagem = $pdo->prepare("SELECT Imagem FROM Usuarios WHERE id = :id");
     $stmtImagem->bindParam(':id', $usuarioID, PDO::PARAM_INT);
     $stmtImagem->execute();
     $resultado = $stmtImagem->fetch(PDO::FETCH_ASSOC);

@@ -50,7 +50,7 @@ $pdo = $db->conexao();  // Obtém a conexão PDO
 $imagemPerfil = null;
 if ($usuarioID) {
   try {
-    $stmtImagem = $pdo->prepare("SELECT Imagem FROM usuarios WHERE id = :id");
+    $stmtImagem = $pdo->prepare("SELECT Imagem FROM Usuarios WHERE id = :id");
     $stmtImagem->bindParam(':id', $usuarioID, PDO::PARAM_INT);
     $stmtImagem->execute();
     $resultado = $stmtImagem->fetch(PDO::FETCH_ASSOC);
@@ -70,12 +70,12 @@ if (!$imagemPerfil) {
 // Verificar se a coluna is_admin existe, se não, criar
 try {
   // Verificar se a coluna já existe
-  $stmtCheck = $pdo->query("SHOW COLUMNS FROM usuarios LIKE 'is_admin'");
+  $stmtCheck = $pdo->query("SHOW COLUMNS FROM Usuarios LIKE 'is_admin'");
   $colunaExiste = $stmtCheck->rowCount() > 0;
 
   if (!$colunaExiste) {
     // Se não existe, criar a coluna
-    $pdo->exec("ALTER TABLE usuarios ADD COLUMN is_admin TINYINT(1) DEFAULT 0");
+    $pdo->exec("ALTER TABLE Usuarios ADD COLUMN is_admin TINYINT(1) DEFAULT 0");
   }
 } catch (PDOException $e) {
   // Ignorar erro - coluna provavelmente já existe
@@ -83,7 +83,7 @@ try {
 
 // Tornar o usuário ID 7 (Deyvid) como administrador
 try {
-  $stmtAdminId7 = $pdo->prepare("UPDATE usuarios SET is_admin = 1 WHERE id = 7");
+  $stmtAdminId7 = $pdo->prepare("UPDATE Usuarios SET is_admin = 1 WHERE id = 7");
   $stmtAdminId7->execute();
 } catch (PDOException $e) {
   // Ignorar erro se o usuário não existir
@@ -97,7 +97,7 @@ if (isset($_SESSION['is_admin'])) {
 } else {
   // Se não estiver na sessão, consulta o banco
   try {
-    $stmtAdmin = $pdo->prepare("SELECT is_admin FROM usuarios WHERE id = :id");
+    $stmtAdmin = $pdo->prepare("SELECT is_admin FROM Usuarios WHERE id = :id");
     $stmtAdmin->bindParam(':id', $usuarioID, PDO::PARAM_INT);
     $stmtAdmin->execute();
     $userAdmin = $stmtAdmin->fetch(PDO::FETCH_ASSOC);
@@ -123,7 +123,7 @@ if (isset($_GET['delete_usuario'])) {
     $stmtDelPragas->execute();
 
     // Depois, deletar o usuário
-    $stmtDeleteusuario = $pdo->prepare("DELETE FROM usuarios WHERE id = :id");
+    $stmtDeleteusuario = $pdo->prepare("DELETE FROM Usuarios WHERE id = :id");
     $stmtDeleteusuario->bindParam(':id', $usuario_id, PDO::PARAM_INT);
     $stmtDeleteusuario->execute();
 
@@ -142,7 +142,7 @@ if (isset($_POST['redefinir_senha'])) {
 
   if (!empty($nova_senha)) {
     try {
-      $stmtRedefinir = $pdo->prepare("UPDATE usuarios SET senha = :senha WHERE id = :id");
+      $stmtRedefinir = $pdo->prepare("UPDATE Usuarios SET senha = :senha WHERE id = :id");
       $stmtRedefinir->bindParam(':senha', $nova_senha);
       $stmtRedefinir->bindParam(':id', $usuario_id, PDO::PARAM_INT);
       $stmtRedefinir->execute();
@@ -165,7 +165,7 @@ if (isset($_POST['cadastrar_admin']) && $isAdmin) {
   if (!empty($usuario_admin) && !empty($email_admin) && !empty($senha_admin)) {
     try {
       // Verificar se o email já existe
-      $stmtCheck = $pdo->prepare("SELECT id FROM usuarios WHERE email = :email");
+      $stmtCheck = $pdo->prepare("SELECT id FROM Usuarios WHERE email = :email");
       $stmtCheck->bindParam(':email', $email_admin);
       $stmtCheck->execute();
 
@@ -177,7 +177,7 @@ if (isset($_POST['cadastrar_admin']) && $isAdmin) {
 
         // Cadastrar como administrador
         $stmtCadastro = $pdo->prepare("
-                    INSERT INTO usuarios (usuario, email, senha, is_admin) 
+                    INSERT INTO Usuarios (usuario, email, senha, is_admin) 
                     VALUES (:usuario, :email, :senha, 1)
                 ");
         $stmtCadastro->bindParam(':usuario', $usuario_admin);

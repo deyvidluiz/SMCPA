@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         } else {
             try {
                 // Busca a senha atual do banco de dados
-                $stmt = $conn->prepare("SELECT senha FROM usuarios WHERE usuario = :usuario");
+                $stmt = $conn->prepare("SELECT senha FROM Usuarios WHERE usuario = :usuario");
                 $stmt->bindParam(':usuario', $usuario);
                 $stmt->execute();
                 $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $senha_hash = password_hash($nova_senha, PASSWORD_DEFAULT);
 
                     // Atualiza a senha no banco de dados
-                    $update_stmt = $conn->prepare("UPDATE usuarios SET senha = :senha WHERE usuario = :usuario");
+                    $update_stmt = $conn->prepare("UPDATE Usuarios SET senha = :senha WHERE usuario = :usuario");
                     $update_stmt->bindParam(':senha', $senha_hash);
                     $update_stmt->bindParam(':usuario', $usuario);
                     $update_stmt->execute();

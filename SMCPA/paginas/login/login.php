@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         try {
             // Prepara a consulta SQL - Busca também o campo is_admin
-            $stmt = $conn->prepare("SELECT id, usuario, email, senha, is_admin FROM usuarios WHERE email = :email");
+            $stmt = $conn->prepare("SELECT id, usuario, email, senha, is_admin FROM Usuarios WHERE email = :email");
             $stmt->bindParam(':email', $email);
             $stmt->execute();
             

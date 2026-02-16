@@ -12,7 +12,7 @@ if (isset($_GET['id'])) {
 
     try {
         // Consulta para buscar os dados do usuário no banco
-        $stmt = $conn->prepare("SELECT * FROM usuarios WHERE id = :id");
+        $stmt = $conn->prepare("SELECT * FROM Usuarios WHERE id = :id");
         $stmt->bindParam(':id', $id);
         $stmt->execute();
 
@@ -49,7 +49,7 @@ if (isset($_GET['id'])) {
 
             try {
                 // Prepara a consulta SQL para atualizar os dados no banco de dados
-                $stmt = $conn->prepare("UPDATE usuarios SET usuario = :usuario, senha = :senha, Email = :Email WHERE id = :id");
+                $stmt = $conn->prepare("UPDATE Usuarios SET usuario = :usuario, senha = :senha, Email = :Email WHERE id = :id");
 
                 // Vincula os parâmetros
                 $stmt->bindParam(':usuario', $usuario);

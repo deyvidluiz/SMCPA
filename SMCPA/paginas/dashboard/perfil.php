@@ -48,7 +48,7 @@ if (isset($_SESSION['is_admin'])) {
     $isAdmin = $_SESSION['is_admin'] == 1;
 } else {
     try {
-        $stmtAdmin = $pdo->prepare("SELECT is_admin FROM usuarios WHERE id = :id");
+        $stmtAdmin = $pdo->prepare("SELECT is_admin FROM Usuarios WHERE id = :id");
         $stmtAdmin->bindParam(':id', $usuarioID, PDO::PARAM_INT);
         $stmtAdmin->execute();
         $userAdmin = $stmtAdmin->fetch(PDO::FETCH_ASSOC);
@@ -76,17 +76,17 @@ if (isset($_GET['id']) && !empty($_GET['id'])) {
 try {
     // Verificar se a coluna localizacao existe
     try {
-        $stmtCheck = $pdo->query("SHOW COLUMNS FROM usuarios LIKE 'localizacao'");
+        $stmtCheck = $pdo->query("SHOW COLUMNS FROM Usuarios LIKE 'localizacao'");
         $colunaExiste = $stmtCheck->rowCount() > 0;
         
         if (!$colunaExiste) {
-            $pdo->exec("ALTER TABLE usuarios ADD COLUMN localizacao VARCHAR(255) DEFAULT NULL");
+            $pdo->exec("ALTER TABLE Usuarios ADD COLUMN localizacao VARCHAR(255) DEFAULT NULL");
         }
     } catch (PDOException $e) {
         // Ignorar erro - coluna provavelmente já existe
     }
     
-    $stmt = $pdo->prepare("SELECT id, usuario, email, Imagem, data_cadastro, localizacao FROM usuarios WHERE id = :id");
+    $stmt = $pdo->prepare("SELECT id, usuario, email, Imagem, data_cadastro, localizacao FROM Usuarios WHERE id = :id");
     $stmt->bindParam(':id', $usuarioVisualizadoID, PDO::PARAM_INT);
     $stmt->execute();
     $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -159,7 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['alterar_foto']) && $e
                     }
 
                     // Atualizar no banco
-                    $stmt = $pdo->prepare("UPDATE usuarios SET Imagem = :imagem WHERE id = :id");
+                    $stmt = $pdo->prepare("UPDATE Usuarios SET Imagem = :imagem WHERE id = :id");
                     $stmt->bindParam(':imagem', $nomeImagem);
                     $stmt->bindParam(':id', $usuarioID, PDO::PARAM_INT);
                     $stmt->execute();
@@ -191,7 +191,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['atualizar_dados']) &&
     } else {
         try {
             // Verificar se o email já existe (exceto o próprio usuário)
-            $stmt = $pdo->prepare("SELECT id FROM usuarios WHERE email = :email AND id != :id");
+            $stmt = $pdo->prepare("SELECT id FROM Usuarios WHERE email = :email AND id != :id");
             $stmt->bindParam(':email', $novoEmail);
             $stmt->bindParam(':id', $usuarioID, PDO::PARAM_INT);
             $stmt->execute();
@@ -200,7 +200,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['atualizar_dados']) &&
                 $erro = "Este email já está sendo usado por outro usuário.";
             } else {
                 // Atualizar dados (incluindo localização)
-                $stmt = $pdo->prepare("UPDATE usuarios SET usuario = :usuario, email = :email, localizacao = :localizacao WHERE id = :id");
+                $stmt = $pdo->prepare("UPDATE Usuarios SET usuario = :usuario, email = :email, localizacao = :localizacao WHERE id = :id");
                 $stmt->bindParam(':usuario', $novoNome);
                 $stmt->bindParam(':email', $novoEmail);
                 $stmt->bindParam(':localizacao', $novaLocalizacao);
@@ -239,7 +239,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['alterar_senha']) && $
     } else {
         try {
             // Verificar senha atual
-            $stmt = $pdo->prepare("SELECT senha FROM usuarios WHERE id = :id");
+            $stmt = $pdo->prepare("SELECT senha FROM Usuarios WHERE id = :id");
             $stmt->bindParam(':id', $usuarioID, PDO::PARAM_INT);
             $stmt->execute();
             $resultado = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -247,7 +247,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['alterar_senha']) && $
             if (password_verify($senhaAtual, $resultado['senha'])) {
                 // Atualizar senha
                 $senhaHash = password_hash($novaSenha, PASSWORD_DEFAULT);
-                $stmt = $pdo->prepare("UPDATE usuarios SET senha = :senha WHERE id = :id");
+                $stmt = $pdo->prepare("UPDATE Usuarios SET senha = :senha WHERE id = :id");
                 $stmt->bindParam(':senha', $senhaHash);
                 $stmt->bindParam(':id', $usuarioID, PDO::PARAM_INT);
                 $stmt->execute();
@@ -271,7 +271,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deletar_conta']) && $
     } else {
         try {
             // Verificar senha
-            $stmt = $pdo->prepare("SELECT senha FROM usuarios WHERE id = :id");
+            $stmt = $pdo->prepare("SELECT senha FROM Usuarios WHERE id = :id");
             $stmt->bindParam(':id', $usuarioID, PDO::PARAM_INT);
             $stmt->execute();
             $resultado = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -295,7 +295,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deletar_conta']) && $
                 }
 
                 // Deletar o usuário
-                $stmtDelUser = $pdo->prepare("DELETE FROM usuarios WHERE id = :usuarioID");
+                $stmtDelUser = $pdo->prepare("DELETE FROM Usuarios WHERE id = :usuarioID");
                 $stmtDelUser->bindParam(':usuarioID', $usuarioID, PDO::PARAM_INT);
                 $stmtDelUser->execute();
 

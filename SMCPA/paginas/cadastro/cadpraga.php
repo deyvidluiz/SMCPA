@@ -41,7 +41,7 @@ if (isset($_SESSION['is_admin'])) {
     $isAdmin = $_SESSION['is_admin'] == 1;
 } else {
     try {
-        $stmtAdmin = $pdo->prepare("SELECT is_admin FROM usuarios WHERE id = :id");
+        $stmtAdmin = $pdo->prepare("SELECT is_admin FROM Usuarios WHERE id = :id");
         $stmtAdmin->bindParam(':id', $usuarioID, PDO::PARAM_INT);
         $stmtAdmin->execute();
         $userAdmin = $stmtAdmin->fetch(PDO::FETCH_ASSOC);
@@ -283,7 +283,7 @@ class Upload
                             if (!empty($localidade_tratada)) {
                                 $stmtUsuarios = $this->con->conexao()->prepare("
                                     SELECT DISTINCT u.id 
-                                    FROM usuarios u
+                                    FROM Usuarios u
                                     WHERE (u.localizacao = :localidade 
                                            OR u.localizacao LIKE :localidadeLike)
                                     AND u.id != :usuarioID
@@ -318,7 +318,7 @@ class Upload
                             // Verificar se é admin para redirecionar corretamente
                             $dashboardUrl = "../dashboard/dashboard.php";
                             try {
-                                $stmtCheckAdmin = $this->con->conexao()->prepare("SELECT is_admin FROM usuarios WHERE id = :id");
+                                $stmtCheckAdmin = $this->con->conexao()->prepare("SELECT is_admin FROM Usuarios WHERE id = :id");
                                 $stmtCheckAdmin->bindParam(':id', $this->ID_Usuario, PDO::PARAM_INT);
                                 $stmtCheckAdmin->execute();
                                 $adminResult = $stmtCheckAdmin->fetch(PDO::FETCH_ASSOC);

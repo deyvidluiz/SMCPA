@@ -121,11 +121,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             try {
                 // Verificar se a coluna localizacao existe, se não, criar
                 try {
-                    $stmtCheck = $conn->query("SHOW COLUMNS FROM usuarios LIKE 'localizacao'");
+                    $stmtCheck = $conn->query("SHOW COLUMNS FROM Usuarios LIKE 'localizacao'");
                     $colunaExiste = $stmtCheck->rowCount() > 0;
                     
                     if (!$colunaExiste) {
-                        $conn->exec("ALTER TABLE usuarios ADD COLUMN localizacao VARCHAR(255) DEFAULT NULL");
+                        $conn->exec("ALTER TABLE Usuarios ADD COLUMN localizacao VARCHAR(255) DEFAULT NULL");
                     }
                 } catch (PDOException $e) {
                     // Ignorar erro - coluna provavelmente já existe
@@ -136,7 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
                 // INSERT com a coluna Imagem e Localizacao
                 $stmt = $conn->prepare("
-                    INSERT INTO usuarios (usuario, senha, Email, Imagem, localizacao) 
+                    INSERT INTO Usuarios (usuario, senha, Email, Imagem, localizacao) 
                     VALUES (:usuario, :senha, :Email, :Imagem, :localizacao)
                 ");
 

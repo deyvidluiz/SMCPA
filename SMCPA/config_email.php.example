@@ -1,0 +1,26 @@
+<?php
+/**
+ * Configuração de email (Gmail SMTP) - CÓPIE ESTE ARQUIVO PARA config_email.php
+ * e preencha com seu email e Senha de App do Gmail.
+ *
+ * ANTES: instale as dependências (na pasta SMCPA):
+ *   composer install
+ * Se não tiver Composer: https://getcomposer.org/ ou: sudo apt install composer
+ *
+ * Como obter Senha de App no Gmail:
+ * 1. Acesse https://myaccount.google.com/
+ * 2. Segurança → Verificação em duas etapas (ative se ainda não tiver)
+ * 3. Segurança → Senhas de app → Gerar senha para "Mail" / "Outro"
+ * 4. Use a senha de 16 caracteres gerada em smtp_senha
+ */
+return [
+    'smtp_ativo'   => true,
+    'smtp_host'    => 'smtp.gmail.com',
+    'smtp_porta'   => 587,
+    'smtp_seguro'  => 'tls',
+    'smtp_usuario' => 'seu_email@gmail.com',
+    'smtp_senha'   => 'sua_senha_de_app_16_caracteres',
+    'remetente'    => 'seu_email@gmail.com',
+    'nome_remetente' => 'SMCPA',
+    'url_base'       => '', // opcional: ex. 'http://localhost:8000' para php -S localhost:8000
+];

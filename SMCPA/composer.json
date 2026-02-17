@@ -1,0 +1,11 @@
+{
+  "name": "smcpa/smcpa",
+  "description": "Sistema de Monitoramento e Controle de Pragas Agrícolas",
+  "require": {
+    "php": ">=7.4",
+    "phpmailer/phpmailer": "^6.9"
+  },
+  "config": {
+    "optimize-autoloader": true
+  }
+}

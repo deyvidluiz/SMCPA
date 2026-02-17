@@ -1,10 +1,12 @@
 <?php
+
 /**
  * Esqueci minha senha - Solicita redefinição por email.
- * Gera um token, grava em recuperacao_senha e envia link por email.
+ * Gera um token, grava em recuperacao_senha e envia link por email (SMTP Gmail no localhost).
  */
 require_once('../../config.php');
 include_once(BASE_URL . '/database/conexao.php');
+require_once(BASE_URL . '/enviar_email_smtp.php');
 
 $sucesso = false;
 $erro = '';
@@ -13,9 +15,9 @@ $link_para_teste = null; // em localhost exibimos o link na tela para testar sem
 
 // Garantir que a tabela existe (compatível com quem ainda não rodou o bancodedados.sql atualizado)
 try {
-    $db = new Database();
-    $pdo = $db->conexao();
-    $pdo->exec("
+  $db = new Database();
+  $pdo = $db->conexao();
+  $pdo->exec("
         CREATE TABLE IF NOT EXISTS recuperacao_senha (
             ID INT NOT NULL AUTO_INCREMENT,
             ID_Usuario INT NOT NULL,
@@ -31,76 +33,74 @@ try {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
     ");
 } catch (PDOException $e) {
-    // Tabela pode já existir com outra estrutura
+  // Tabela pode já existir com outra estrutura
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['email'])) {
-    $email = trim($_POST['email']);
+  $email = trim($_POST['email']);
 
-    try {
-        $db = new Database();
-        $pdo = $db->conexao();
+  try {
+    $db = new Database();
+    $pdo = $db->conexao();
 
-        $stmt = $pdo->prepare("SELECT ID, usuario, Email FROM Usuarios WHERE Email = :email LIMIT 1");
-        $stmt->bindParam(':email', $email);
-        $stmt->execute();
-        $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
+    $stmt = $pdo->prepare("SELECT ID, usuario, Email FROM Usuarios WHERE Email = :email LIMIT 1");
+    $stmt->bindParam(':email', $email);
+    $stmt->execute();
+    $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if (!$usuario) {
-            $erro = 'Não existe conta cadastrada com este email.';
-        } else {
-            $token = bin2hex(random_bytes(32));
-            $expira_em = date('Y-m-d H:i:s', strtotime('+1 hour'));
+    if (!$usuario) {
+      $erro = 'Não existe conta cadastrada com este email.';
+    } else {
+      $token = bin2hex(random_bytes(32));
+      $expira_em = date('Y-m-d H:i:s', strtotime('+1 hour'));
 
-            $ins = $pdo->prepare("INSERT INTO recuperacao_senha (ID_Usuario, token, expira_em) VALUES (:id_usuario, :token, :expira_em)");
-            $ins->bindParam(':id_usuario', $usuario['ID'], PDO::PARAM_INT);
-            $ins->bindParam(':token', $token);
-            $ins->bindParam(':expira_em', $expira_em);
-            $ins->execute();
+      $ins = $pdo->prepare("INSERT INTO recuperacao_senha (ID_Usuario, token, expira_em) VALUES (:id_usuario, :token, :expira_em)");
+      $ins->bindParam(':id_usuario', $usuario['ID'], PDO::PARAM_INT);
+      $ins->bindParam(':token', $token);
+      $ins->bindParam(':expira_em', $expira_em);
+      $ins->execute();
 
-            $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-            $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-            $baseUrl = $scheme . '://' . $host . '/SMCPA';
-            $linkRedefinir = $baseUrl . '/paginas/esqsenha/redefinir_senha.php?token=' . urlencode($token);
+      $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+      $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+      $config_email = is_file(BASE_URL . '/config_email.php') ? include BASE_URL . '/config_email.php' : [];
+      $url_base = !empty($config_email['url_base']) ? rtrim($config_email['url_base'], '/') : ($scheme . '://' . $host . '/SMCPA');
+      $linkRedefinir = $url_base . 'SMCPA/paginas/esqsenha/redefinir_senha.php?token=' . urlencode($token);
 
-            $assunto = 'Redefinição de senha - SMCPA';
-            $mensagem = "Olá, " . $usuario['usuario'] . ",\n\n";
-            $mensagem .= "Você solicitou a redefinição de senha no SMCPA.\n\n";
-            $mensagem .= "Clique no link abaixo para definir uma nova senha (válido por 1 hora):\n";
-            $mensagem .= $linkRedefinir . "\n\n";
-            $mensagem .= "Se você não solicitou isso, ignore este email. O link expira em 1 hora.\n\n";
-            $mensagem .= "Sistema SMCPA - Monitoramento e Controle de Pragas Agrícolas";
+      $assunto = 'Redefinição de senha - SMCPA';
+      $mensagem = "Olá, " . $usuario['usuario'] . ",\n\n";
+      $mensagem .= "Você solicitou a redefinição de senha no SMCPA.\n\n";
+      $mensagem .= "Clique no link abaixo para definir uma nova senha (válido por 1 hora):\n";
+      $mensagem .= $linkRedefinir . "\n\n";
+      $mensagem .= "Se você não solicitou isso, ignore este email. O link expira em 1 hora.\n\n";
+      $mensagem .= "Sistema SMCPA - Monitoramento e Controle de Pragas Agrícolas";
 
-            $headers = "From: SMCPA <noreply@" . preg_replace('/^www\./', '', parse_url($scheme . '://' . $host, PHP_URL_HOST) ?: $host) . ">\r\n";
-            $headers .= "Reply-To: noreply@" . (parse_url($scheme . '://' . $host, PHP_URL_HOST) ?: $host) . "\r\n";
-            $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
+      $enviado = enviar_email_smtp($usuario['Email'], $assunto, $mensagem);
 
-            $enviado = @mail($usuario['Email'], $assunto, $mensagem, $headers);
-
-            $sucesso = true;
-            $email_enviado = $enviado;
-            // Em localhost, guarda o link para exibir na tela (email costuma não funcionar)
-            $eh_localhost = in_array($host, ['localhost', '127.0.0.1'], true)
-                || (strpos($host, 'localhost') !== false) || (strpos($host, '127.0.0.1') !== false);
-            if ($eh_localhost) {
-                $link_para_teste = $linkRedefinir;
-            }
-        }
-    } catch (PDOException $e) {
-        $erro = 'Erro ao processar. Tente novamente mais tarde.';
-        error_log('Esqueci senha: ' . $e->getMessage());
+      $sucesso = true;
+      $email_enviado = $enviado;
+      $eh_localhost = in_array($host, ['localhost', '127.0.0.1'], true)
+        || (strpos($host, 'localhost') !== false) || (strpos($host, '127.0.0.1') !== false);
+      if ($eh_localhost && !$enviado) {
+        $link_para_teste = $linkRedefinir;
+      }
     }
+  } catch (PDOException $e) {
+    $erro = 'Erro ao processar. Tente novamente mais tarde.';
+    error_log('Esqueci senha: ' . $e->getMessage());
+  }
 }
 ?>
 <!DOCTYPE html>
 <html lang="pt-br">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Esqueci minha senha - SMCPA</title>
-    <link rel="shortcut icon" href="/SMCPA/imgs/favicon.ico" type="image/x-icon">
-    <link rel="stylesheet" href="/SMCPA/paginas/login/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Esqueci minha senha - SMCPA</title>
+  <link rel="shortcut icon" href="/SMCPA/imgs/favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="/SMCPA/paginas/login/style.css">
 </head>
+
 <body>
   <div class="container-login">
     <img src="/SMCPA/imgs/logotrbf.png" alt="Logo SMCPA" class="logo">
@@ -133,7 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['email'])) {
       <form action="esqueci_senha.php" method="post">
         <label for="email">Email</label>
         <input type="email" id="email" name="email" placeholder="Digite o email da sua conta" required
-               value="<?= isset($_POST['email']) ? htmlspecialchars($_POST['email']) : '' ?>">
+          value="<?= isset($_POST['email']) ? htmlspecialchars($_POST['email']) : '' ?>">
         <button type="submit">Enviar link para redefinir senha</button>
       </form>
       <p style="text-align: center; margin-top: 16px;">
@@ -142,4 +142,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['email'])) {
     <?php endif; ?>
   </div>
 </body>
+
 </html>

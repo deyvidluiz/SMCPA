@@ -87,7 +87,9 @@ body {
 /* ----- Sidebar ----- */
 .sidebar {
   width: 260px;
-  background: linear-gradient(180deg, rgba(26, 61, 36, 0.98), rgba(26, 61, 36, 0.95)), url('/SMCPA/imgs/barraesq.jpg') center/cover;
+  /* imagem de fundo com leve gradiente escuro para dar contraste aos textos
+     sem esconder demais a foto */
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.28), rgba(0, 0, 0, 0.55)), url('/SMCPA/imgs/barraesq.jpg') center/cover;
   color: #fff;
   display: flex;
   flex-direction: column;
@@ -153,6 +155,8 @@ body {
   transition: background 0.2s, color 0.2s;
   -webkit-tap-highlight-color: transparent;
   min-height: 48px;
+  /* leve sombra para melhorar a leitura sobre a imagem */
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
 }
 
 .sidebar nav.menu-lateral ul li.item-menu a:hover,

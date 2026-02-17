@@ -82,7 +82,8 @@ body {
     padding: 40px;
     overflow-y: auto;
     flex: 1;
-    height: calc(100vh - 280px);
+    /* deixa o flex controlar a altura, evitando cortes em telas menores */
+    min-height: 0;
 }
 
 .section {
@@ -100,6 +101,11 @@ body {
     display: flex;
     align-items: center;
     gap: 15px;
+}
+
+/* garante que o título da seção não fique escondido atrás do cabeçalho/botão voltar ao usar o menu */
+.section {
+    scroll-margin-top: 120px;
 }
 
 .section h2 i {
@@ -282,7 +288,6 @@ body {
 
     .tutorial-content {
         padding: 20px;
-        height: calc(100vh - 220px);
     }
 
     .section {
@@ -329,12 +334,12 @@ body {
 
     .tutorial-content {
         padding: 12px;
-        height: calc(100vh - 200px);
     }
 
     .section {
         padding: 15px;
         margin-bottom: 30px;
+        scroll-margin-top: 100px;
     }
 
     .section h2 {

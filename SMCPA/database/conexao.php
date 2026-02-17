@@ -3,7 +3,7 @@ class Database
 {
     private $conn;
 
-    public function conexao($host = "localhost", $dbname = "Sistema", $username = "deyvid", $password = "Deyvid123@")//Deyvid123@
+    public function conexao($host = "localhost", $dbname = "Sistema", $username = "admin", $password = "admin")//Deyvid123@
     {
         try {
             $this->conn = new PDO(

@@ -213,3 +213,20 @@ CREATE TABLE Avisa (
 	FOREIGN KEY (fk_Usuarios_ID) REFERENCES Usuarios(ID),
 	FOREIGN KEY (fk_Alerta_ID) REFERENCES Alerta(ID)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- =========================
+-- TABELA: recuperacao_senha (tokens para "Esqueci minha senha")
+-- =========================
+CREATE TABLE recuperacao_senha (
+	ID INT NOT NULL AUTO_INCREMENT,
+	ID_Usuario INT NOT NULL,
+	token VARCHAR(64) NOT NULL,
+	expira_em DATETIME NOT NULL,
+	usado TINYINT(1) DEFAULT 0,
+	criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (ID),
+	UNIQUE KEY uk_token (token),
+	KEY idx_expira (expira_em),
+	KEY idx_usado (usado),
+	FOREIGN KEY (ID_Usuario) REFERENCES Usuarios(ID) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

@@ -69,7 +69,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   <div class="container">
     <img src="/SMCPA/imgs/logotrbf.png" alt="Logo SMCPA" class="logo">
     <h1>Alterar Senha</h1>
-    <!-- Formulário de alteração de senha -->
+    <p style="text-align: center; margin-bottom: 12px; font-size: 0.9rem;">
+      <a href="esqueci_senha.php">Esqueci minha senha</a> (redefinir por email)
+    </p>
+    <!-- Formulário de alteração de senha (exige senha atual) -->
     <form action="altsenha.php" method="POST">
       <label for="usuario">Usuário</label>
       <input type="text" id="usuario" name="usuario" placeholder="Digite seu nome de usuário" required>

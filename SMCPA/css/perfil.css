@@ -1,44 +1,79 @@
+/* Perfil - responsivo */
 body {
-    background-color: #f8f9fa;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: #f0f2f5;
+  font-family: 'Roboto', -apple-system, sans-serif;
 }
 
 .perfil-container {
-    max-width: 1000px;
-    margin: 30px auto;
-    padding: 20px;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px 16px;
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
 }
 
 .perfil-imagem {
-    width: 150px;
-    height: 150px;
-    object-fit: cover;
-    border-radius: 50%;
-    border: 4px solid #007bff;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  width: 140px;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 4px solid #1a3d24;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
 }
 
 .card {
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    border: none;
-    margin-bottom: 20px;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  margin-bottom: 16px;
+  overflow: hidden;
 }
 
 .card-header {
-    background-color: #007bff;
-    color: white;
-    font-weight: bold;
+  background: #1a3d24;
+  color: #fff;
+  font-weight: 600;
+  padding: 12px 16px;
+}
+
+.card-body {
+  padding: 16px;
 }
 
 .btn-danger-custom {
-    background-color: #dc3545;
-    border-color: #dc3545;
+  background: #dc2626;
+  border-color: #dc2626;
 }
 
 .praga-item {
-    padding: 10px;
-    border-left: 3px solid #007bff;
-    margin-bottom: 10px;
-    background-color: #f8f9fa;
+  padding: 12px;
+  border-left: 4px solid #2563eb;
+  margin-bottom: 10px;
+  background: #f8fafc;
+  border-radius: 0 8px 8px 0;
 }
 
+@media (max-width: 768px) {
+  .perfil-container {
+    padding: 16px 12px;
+  }
+
+  .perfil-imagem {
+    width: 120px;
+    height: 120px;
+  }
+}
+
+@media (max-width: 480px) {
+  .perfil-container {
+    padding: 12px 10px;
+  }
+
+  .perfil-imagem {
+    width: 100px;
+    height: 100px;
+  }
+
+  .card-body {
+    padding: 14px;
+  }
+}

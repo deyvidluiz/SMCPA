@@ -21,8 +21,18 @@ $mapa_paginas = [
 $pagina_ativa = $mapa_paginas[$arquivo_atual] ?? null;
 ?>
 
+<!-- Overlay para fechar menu no mobile -->
+<div class="sidebar-overlay" id="sidebar-overlay" aria-hidden="true"></div>
+
+<!-- Botão hamburger (visível apenas no mobile) -->
+<button type="button" class="sidebar-toggle" id="btn-exp" aria-label="Abrir menu">
+    <span class="hamburger-line"></span>
+    <span class="hamburger-line"></span>
+    <span class="hamburger-line"></span>
+</button>
+
 <!-- Sidebar (Menu Lateral) -->
-<aside class="sidebar">
+<aside class="sidebar" id="sidebar">
     <div class="logo">
         <a href="<?= $isAdmin ? '/SMCPA/paginas/dashboard/dashboardadm.php' : '/SMCPA/paginas/dashboard/dashboard.php'; ?>">
             <img src="/SMCPA/imgs/logotrbf.png" alt="SMCPA Logo">

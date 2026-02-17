@@ -1,59 +1,65 @@
-/* ============================================
-   IMPORTS
-   ============================================ */
+/* Dashboard Admin - herda layout do dashboard.css */
 @import url('dashboard.css');
 
-/* ============================================
-   ESTILOS ESPECÍFICOS DASHBOARDADM
-   ============================================ */
 .titulo {
-    text-align: center;
+  text-align: center;
 }
 
-/* Tabela */
 .tabela-container {
-    margin-left: 20%;
-    /* Espaço para o painel lateral */
-    padding: 20px;
-    flex-grow: 1;
-    overflow-x: auto;
-    /* Scroll horizontal se necessário */
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px;
 }
 
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 20px;
+.tabela-container table {
+  width: 100%;
+  min-width: 600px;
+  border-collapse: collapse;
+  margin-top: 16px;
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
 }
 
-th,
-td {
-    border: 1px solid #ddd;
-    padding: 12px;
-    text-align: left;
+.tabela-container th,
+.tabela-container td {
+  border: 1px solid #e5e7eb;
+  padding: 12px 14px;
+  text-align: left;
+  font-size: 0.9rem;
 }
 
-th {
-    background-color: #f4f4f4;
-    color: #333;
+.tabela-container th {
+  background: #1a3d24;
+  color: #fff;
+  font-weight: 600;
 }
 
-tr:nth-child(even) {
-    background-color: #f9f9f9;
+.tabela-container tr:nth-child(even) {
+  background: #f9fafb;
 }
 
-/* Responsividade: Ajusta o layout para telas menores */
-@media (max-width: 768px) {
-    .dashboard-container {
-        flex-direction: column;
-    }
+.tabela-container tr:hover {
+  background: #f3f4f6;
+}
 
-    .sidebar {
-        width: 100%;
-        position: relative;
-    }
+@media (max-width: 900px) {
+  .tabela-container {
+    margin-left: 0;
+    padding: 12px 10px;
+  }
+}
 
-    .tabela-container {
-        margin-left: 0;
-    }
+@media (max-width: 480px) {
+  .tabela-container {
+    padding: 10px 8px;
+    margin: 0 -4px;
+  }
+
+  .tabela-container th,
+  .tabela-container td {
+    padding: 10px 12px;
+    font-size: 0.85rem;
+  }
 }

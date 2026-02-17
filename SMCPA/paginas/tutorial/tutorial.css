@@ -9,8 +9,10 @@ body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     min-height: 100vh;
+    min-height: 100dvh;
     padding: 0;
     overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
 }
 
 /* Container do tutorial em tela cheia */
@@ -26,7 +28,8 @@ body {
 .tutorial-header {
     background: linear-gradient(135deg, #1a3d24 0%, #28a745 100%);
     color: white;
-    padding: 40px;
+    padding: 32px 24px;
+    padding-top: max(32px, env(safe-area-inset-top) + 16px);
     text-align: center;
     flex-shrink: 0;
 }
@@ -178,8 +181,8 @@ body {
 
 .back-button {
     position: fixed;
-    top: 20px;
-    left: 20px;
+    top: max(20px, env(safe-area-inset-top));
+    left: max(20px, env(safe-area-inset-left));
     z-index: 1000;
     padding: 12px 24px;
     background: white;
@@ -190,6 +193,7 @@ body {
     font-weight: 600;
     transition: all 0.3s;
     box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    -webkit-tap-highlight-color: transparent;
 }
 
 .back-button:hover {
@@ -294,6 +298,67 @@ body {
         left: 10px;
         padding: 8px 16px;
         font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .tutorial-header {
+        padding: 16px 12px;
+    }
+
+    .tutorial-header h1 {
+        font-size: 1.5rem;
+    }
+
+    .tutorial-header p {
+        font-size: 0.9rem;
+    }
+
+    .tutorial-nav {
+        padding: 12px 10px;
+    }
+
+    .nav-buttons {
+        gap: 10px;
+    }
+
+    .nav-btn {
+        padding: 8px 16px;
+        font-size: 0.9rem;
+    }
+
+    .tutorial-content {
+        padding: 12px;
+        height: calc(100vh - 200px);
+    }
+
+    .section {
+        padding: 15px;
+        margin-bottom: 30px;
+    }
+
+    .section h2 {
+        font-size: 1.25rem;
+        gap: 10px;
+    }
+
+    .section h3 {
+        font-size: 1.2rem;
+    }
+
+    .section p {
+        font-size: 0.95rem;
+    }
+
+    .back-button {
+        top: 8px;
+        left: 8px;
+        padding: 8px 14px;
+        font-size: 0.85rem;
+    }
+
+    .feature-card {
+        padding: 15px;
     }
 }
 

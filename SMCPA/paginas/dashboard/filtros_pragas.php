@@ -163,41 +163,33 @@ $lista = $stmtPragas->fetchAll(PDO::FETCH_ASSOC);
 <body>
   <div class="dashboard-container">
     <?php include_once(BASE_URL . '/includes/sidebar.php'); ?>
-    </aside>
 
-    <!-- Main Content -->
-    <div class="tabela-container">
-      <nav class="navbar bg-body-tertiary mb-4">
-        <div class="container-fluid">
-          <form class="d-flex" role="search" action="filtros_pragas.php" method="post" style="flex: 1;">
-            <input class="form-control me-2" type="search" name="procurar_praga" placeholder="Nome, Planta ou Localidade" aria-label="Procurar Praga" value="<?= htmlspecialchars($pesquisa_praga); ?>" autofocus />
-            <button class="btn btn-outline-success" type="submit">
-              <i class="bi bi-search"></i> Procurar
-            </button>
+    <main class="main-content main-content-filtros">
+      <header class="topbar topbar-filtros">
+        <div class="left"></div>
+        <div class="right d-flex align-items-center gap-2">
+          <a href="./perfil.php" class="topbar-perfil-link">
+            <img src="<?= htmlspecialchars($imagemPerfil); ?>" alt="Perfil" class="rounded-circle topbar-avatar" onerror="this.src='/SMCPA/imgs/logotrbf.png'">
+          </a>
+        </div>
+      </header>
+      <div class="content content-filtros">
+    <div class="tabela-container tabela-container-filtros">
+      <div class="filtros-pragas-header">
+        <h2 class="filtros-titulo"><i class="bi bi-bug-fill"></i> Filtros de Pragas</h2>
+        <form class="filtros-form" action="filtros_pragas.php" method="post">
+          <div class="filtros-busca">
+            <input class="filtros-input" type="search" name="procurar_praga" placeholder="Nome, planta ou localidade..." value="<?= htmlspecialchars($pesquisa_praga); ?>" aria-label="Procurar" />
+            <button class="filtros-btn filtros-btn-buscar" type="submit"><i class="bi bi-search"></i><span>Procurar</span></button>
             <?php if (!empty($pesquisa_praga)): ?>
-              <a href="filtros_pragas.php" class="btn btn-outline-secondary ms-2">
-                <i class="bi bi-x-circle"></i> Limpar
-              </a>
+              <a href="filtros_pragas.php" class="filtros-btn filtros-btn-limpar"><i class="bi bi-x-circle"></i><span>Limpar</span></a>
             <?php endif; ?>
-          </form>
-          <div class="d-flex gap-2 ms-3 align-items-center">
-            <a href="perfil.php" style="text-decoration: none;">
-              <img src="<?= htmlspecialchars($imagemPerfil); ?>"
-                alt="Perfil do usuário"
-                class="rounded-circle"
-                style="width: 40px; height: 40px; object-fit: cover; border: 2px solid rgba(0,0,0,0.1); cursor: pointer;"
-                onerror="this.src='/SMCPA/imgs/logotrbf.png'">
-            </a>
           </div>
-        </div>
-      </nav>
+        </form>
+        <p class="filtros-total">Total: <strong><?= count($lista); ?></strong> praga(s)</p>
+      </div>
 
-      <div class="container">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-          <h2><i class="bi bi-bug-fill text-primary"></i> Filtros de Pragas</h2>
-          <p class="text-muted mb-0">Total: <?= count($lista); ?> praga(s) encontrada(s)</p>
-        </div>
-
+      <div class="container filtros-container">
         <?php if (!empty($lista)): ?>
           <div class="row g-4">
             <?php foreach ($lista as $praga): ?>
@@ -271,6 +263,8 @@ $lista = $stmtPragas->fetchAll(PDO::FETCH_ASSOC);
         <?php endif; ?>
       </div>
     </div>
+      </div>
+    </main>
   </div>
 
   <!-- Modais de Relatórios -->
@@ -394,6 +388,7 @@ $lista = $stmtPragas->fetchAll(PDO::FETCH_ASSOC);
   <?php endforeach; ?>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="/SMCPA/js/menu.js"></script>
 </body>
 
 </html>

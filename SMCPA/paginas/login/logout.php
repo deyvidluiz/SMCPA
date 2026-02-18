@@ -25,8 +25,8 @@ header("Cache-Control: no-cache, no-store, must-revalidate"); // HTTP 1.1
 header("Pragma: no-cache"); // HTTP 1.0
 header("Expires: 0"); // Proxies
 
-// Redirecionar para a página de login
-header("Location: /SMCPA/paginas/login/login.php?logout=success");
+// Redirecionar para a página inicial
+header("Location: /SMCPA/paginas/inicial/inicial.html");
 exit();
 ?>
 

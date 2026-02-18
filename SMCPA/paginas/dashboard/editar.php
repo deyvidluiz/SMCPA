@@ -1,6 +1,6 @@
 <?php
 require_once('../../config.php');
-include_once(BASE_URL.'/database/conexao.php');
+include_once(BASE_URL . '/database/conexao.php');
 
 // Verifica se o ID foi passado (por exemplo, via GET ou POST)
 if (isset($_GET['id'])) {
@@ -77,31 +77,34 @@ if (isset($_GET['id'])) {
 
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="shortcut icon" href="/SMCPA/imgs/favicon.ico" type="image/x-icon">
-  <link rel="stylesheet" href="../../css/cadastro.css">  <!-- Caminho correto para o CSS -->
-  <title>Editar Cadastro - SMCPA</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="shortcut icon" href="/SMCPA/imgs/favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="../../css/cadastro.css"> <!-- Caminho correto para o CSS -->
+    <title>Editar Cadastro - SMCPA</title>
 </head>
+
 <body>
-  <div class="container">
-    <img src="/SMCPA/imgs/logotrbf.png" alt="Logo SMCPA" class="logo">
-    <h1>Editar Cadastro</h1>
-    <!-- Formulário de edição -->
-    <form action="editar.php?id=<?php echo $id; ?>" method="POST">  <!-- Ação para o próprio arquivo com ID -->
-      <label for="usuario">Nome</label>
-      <input type="text" id="usuario" name="usuario" placeholder="Digite seu nome" value="<?php echo $usuario_predefinido; ?>" required>
+    <div class="container">
+        <img src="/SMCPA/imgs/logotrbf.png" alt="Logo SMCPA" class="logo">
+        <h1>Editar Cadastro</h1>
+        <!-- Formulário de edição -->
+        <form action="editar.php?id=<?php echo $id; ?>" method="POST"> <!-- Ação para o próprio arquivo com ID -->
+            <label for="usuario">Nome</label>
+            <input type="text" id="usuario" name="usuario" placeholder="Digite seu nome" value="<?php echo $usuario_predefinido; ?>" required>
 
-      <label for="email">E-mail</label>
-      <input type="email" id="email" name="email" placeholder="Digite seu e-mail" value="<?php echo $email_predefinido; ?>" required>
+            <label for="email">E-mail</label>
+            <input type="email" id="email" name="email" placeholder="Digite seu e-mail" value="<?php echo $email_predefinido; ?>" required>
 
-      <!-- Campo para a nova senha -->
-      <label for="senha">Nova Senha</label>
-      <input type="password" id="senha" name="senha" placeholder="Digite sua nova senha">
+            <!-- Campo para a nova senha -->
+            <label for="senha">Nova Senha</label>
+            <input type="password" id="senha" name="senha" placeholder="Digite sua nova senha">
 
-      <button type="submit">Salvar alterações</button>
-    </form>
-  </div>
+            <button type="submit">Salvar alterações</button>
+        </form>
+    </div>
 </body>
+
 </html>

@@ -14,8 +14,11 @@ html {
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  background: linear-gradient(160deg, #0a1a0e 0%, #1a3d24 45%, #2d5f3d 100%);
+  font-family:
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
   min-height: 100vh;
   min-height: 100dvh;
   color: #fff;
@@ -29,6 +32,29 @@ body {
   display: flex;
   flex-direction: column;
   overflow-x: hidden;
+  position: relative;
+  background: linear-gradient(160deg, #0a1a0e 0%, #1a3d24 45%, #2d5f3d 100%);
+}
+
+.container::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: url("/SMCPA/imgs/planta_diret.png") no-repeat center center;
+  background-size: cover;
+  background-attachment: scroll;
+  z-index: 0;
+  opacity: 0.6;
+  filter: brightness(0.7) saturate(0.9);
+}
+
+@media (min-width: 768px) {
+  .container::before {
+    background-attachment: fixed;
+  }
 }
 
 /* ----- Header ----- */
@@ -46,10 +72,10 @@ body {
   padding-top: max(12px, env(safe-area-inset-top));
   padding-left: max(16px, env(safe-area-inset-left));
   padding-right: max(16px, env(safe-area-inset-right));
-  background: rgba(10, 26, 14, 0.9);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(74, 222, 128, 0.15);
+  background: rgba(10, 26, 14, 0.85);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(74, 222, 128, 0.2);
 }
 
 .nav-container {
@@ -99,7 +125,9 @@ body {
   font-weight: 600;
   text-decoration: none;
   min-height: 44px;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -126,39 +154,40 @@ body {
   box-shadow: 0 6px 20px rgba(74, 222, 128, 0.5);
 }
 
-.nav-menu ul { list-style: none; display: flex; gap: 2rem; }
-.nav-menu a { color: #fff; text-decoration: none; font-weight: 500; }
-.nav-menu a:hover { color: #4ade80; }
+.nav-menu ul {
+  list-style: none;
+  display: flex;
+  gap: 2rem;
+}
+.nav-menu a {
+  color: #fff;
+  text-decoration: none;
+  font-weight: 500;
+}
+.nav-menu a:hover {
+  color: #4ade80;
+}
 
 /* ----- Hero ----- */
 .hero {
   flex: 1;
   display: flex;
   align-items: center;
-  padding: 100px 20px 40px;
+  padding: 100px 20px 48px;
   padding-top: max(100px, 70px + env(safe-area-inset-top));
-  padding-left: max(20px, env(safe-area-inset-left) + 12px);
-  padding-right: max(20px, env(safe-area-inset-right) + 12px);
-  padding-bottom: max(40px, env(safe-area-inset-bottom) + 24px);
+  padding-left: max(20px, env(safe-area-inset-left) + 16px);
+  padding-right: max(20px, env(safe-area-inset-right) + 16px);
+  padding-bottom: max(48px, env(safe-area-inset-bottom) + 24px);
   position: relative;
+  z-index: 1;
   overflow: hidden;
-}
-
-.hero::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: url('/SMCPA/imgs/planta_diret.png') no-repeat center center / cover;
-  z-index: 0;
-  opacity: 0.8;
-  filter: brightness(0.65);
 }
 
 .hero-content {
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 540px;
+  max-width: 560px;
 }
 
 .hero-left {
@@ -167,36 +196,35 @@ body {
 
 .badge {
   display: inline-block;
-  padding: 6px 14px;
-  margin-bottom: 16px;
-  font-size: 0.75rem;
+  padding: 8px 16px;
+  margin-bottom: 18px;
+  font-size: 0.8rem;
   font-weight: 600;
   color: #4ade80;
-  background: rgba(74, 222, 128, 0.12);
-  border: 1px solid rgba(74, 222, 128, 0.3);
-  border-radius: 20px;
+  background: rgba(10, 26, 14, 0.7);
+  border: 1px solid rgba(74, 222, 128, 0.4);
+  border-radius: 24px;
   letter-spacing: 0.03em;
+  backdrop-filter: blur(8px);
 }
 
 .hero-title {
-  font-size: 1.75rem;
+  font-size: 1.85rem;
   font-weight: 700;
   line-height: 1.2;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
   color: #fff;
-  background: linear-gradient(135deg, #fff 0%, #4ade80 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
   word-break: break-word;
 }
 
 .hero-description {
   font-size: 1rem;
-  line-height: 1.6;
-  color: rgba(255, 255, 255, 0.85);
-  margin-bottom: 24px;
-  max-width: 90%;
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.95);
+  margin-bottom: 28px;
+  max-width: 95%;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
 }
 
 .hero-buttons {
@@ -217,63 +245,127 @@ body {
   font-size: 1rem;
   font-weight: 600;
   text-decoration: none;
-  min-height: 48px;
-  transition: transform 0.2s, box-shadow 0.2s;
+  min-height: 50px;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s,
+    background 0.2s;
   -webkit-tap-highlight-color: transparent;
-  border: none;
   cursor: pointer;
 }
 
 .btn-primary {
   color: #0a1a0e;
   background: linear-gradient(135deg, #4ade80, #22c55e);
-  box-shadow: 0 4px 16px rgba(74, 222, 128, 0.4);
+  border: none;
+  box-shadow: 0 4px 20px rgba(74, 222, 128, 0.45);
 }
 
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 22px rgba(74, 222, 128, 0.5);
+  box-shadow: 0 8px 28px rgba(74, 222, 128, 0.55);
 }
 
 .hero-buttons .btn-secondary {
   color: #fff;
-  background: rgba(255, 255, 255, 0.1);
-  border: 2px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.12);
+  border: 2px solid rgba(255, 255, 255, 0.4);
 }
 
 .hero-buttons .btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.18);
   border-color: #4ade80;
 }
 
 /* ----- Responsivo: tablet ----- */
 @media (min-width: 600px) {
-  .hero-title { font-size: 2.25rem; }
-  .hero-description { font-size: 1.05rem; max-width: 100%; }
-  .hero { padding: 110px 32px 48px; }
+  .hero-title {
+    font-size: 2.3rem;
+  }
+  .hero-description {
+    font-size: 1.08rem;
+    max-width: 100%;
+  }
+  .hero {
+    padding: 110px 32px 56px;
+  }
+  .badge {
+    font-size: 0.85rem;
+    padding: 8px 18px;
+  }
 }
 
 /* ----- Responsivo: desktop ----- */
 @media (min-width: 900px) {
-  .header { padding: 14px 24px; padding-top: max(14px, env(safe-area-inset-top)); }
-  .titulo-site { font-size: 1.35rem; }
-  .logo-container .logo { width: 40px; height: 40px; }
-  .hero { padding: 120px 48px 56px; }
-  .hero-title { font-size: 2.75rem; }
-  .hero-description { font-size: 1.1rem; margin-bottom: 28px; }
-  .hero-content { max-width: 600px; }
+  .header {
+    padding: 14px 28px;
+    padding-top: max(14px, env(safe-area-inset-top));
+  }
+  .titulo-site {
+    font-size: 1.4rem;
+  }
+  .logo-container .logo {
+    width: 42px;
+    height: 42px;
+  }
+  .hero {
+    padding: 120px 56px 64px;
+  }
+  .hero-title {
+    font-size: 2.8rem;
+  }
+  .hero-description {
+    font-size: 1.12rem;
+    margin-bottom: 32px;
+    line-height: 1.7;
+  }
+  .hero-content {
+    max-width: 620px;
+  }
+  .hero-buttons .btn-primary,
+  .hero-buttons .btn-secondary {
+    padding: 16px 28px;
+    min-height: 54px;
+  }
 }
 
 /* ----- Mobile pequeno ----- */
 @media (max-width: 400px) {
-  .header { padding: 10px 12px; padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
-  .logo-container .logo { width: 30px; height: 30px; }
-  .titulo-site { font-size: 1.1rem; }
-  .Logins a { padding: 8px 14px; font-size: 0.85rem; min-height: 40px; }
-  .hero { padding: 90px 16px 32px; }
-  .hero-title { font-size: 1.5rem; }
-  .hero-description { font-size: 0.95rem; margin-bottom: 20px; }
-  .hero-buttons { flex-direction: column; }
+  .header {
+    padding: 10px 12px;
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
+  .logo-container .logo {
+    width: 32px;
+    height: 32px;
+  }
+  .titulo-site {
+    font-size: 1.1rem;
+  }
+  .Logins a {
+    padding: 8px 14px;
+    font-size: 0.85rem;
+    min-height: 42px;
+  }
+  .hero {
+    padding: 92px 16px 40px;
+  }
+  .hero-title {
+    font-size: 1.55rem;
+  }
+  .hero-description {
+    font-size: 0.95rem;
+    margin-bottom: 22px;
+  }
+  .hero-buttons {
+    flex-direction: column;
+    gap: 10px;
+  }
   .hero-buttons .btn-primary,
-  .hero-buttons .btn-secondary { flex: 1 1 auto; width: 100%; }
+  .hero-buttons .btn-secondary {
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: 48px;
+  }
 }

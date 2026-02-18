@@ -148,3 +148,45 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ----- Admin: grade de feedbacks ----- */
+.feedback-admin-container {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 4px;
+}
+
+.feedback-grid-admin {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.feedback-card-admin .feedback-mensagem {
+  background: #f9fafb;
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 12px;
+  border: 1px solid #e5e7eb;
+  font-size: 0.95rem;
+  color: #374151;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.feedback-card-admin h5 {
+  font-size: 1.05rem;
+}
+
+@media (min-width: 901px) and (max-width: 1200px) {
+  .feedback-grid-admin {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1201px) {
+  .feedback-grid-admin {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

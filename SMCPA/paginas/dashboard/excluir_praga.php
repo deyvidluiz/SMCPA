@@ -69,5 +69,3 @@ try {
     header('Location: ' . $dashboardUrl . '?erro=erro_ao_excluir');
     exit;
 }
-
-

@@ -72,62 +72,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     exit;
   }
 
-  $delUserId = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
-  if ($delUserId > 0) {
-    // Evitar que admin delete a própria conta a partir desta interface
-    if ($delUserId == $usuarioID) {
-      header('Location: filtros_usuarios.php?erro=nao_possivel_excluir_proprio');
-      exit;
-    }
-
-    try {
-      // Primeiro: excluir todas as pragas (originais + histórico) associadas a este usuário
-      $stmtPragas = $pdo->prepare("SELECT ID FROM Pragas_Surtos WHERE ID_Usuario = :uid");
+  $delUserId = (int) ($_POST['user_id'] ?? 0);
+  if ($delUserId <= 0) {
+    header('Location: filtros_usuarios.php?erro=id_invalido');
+    exit;
+  }
+  try {
+      // Remover arquivos de imagem das pragas do usuário (antes de apagar do BD)
+      $stmtPragas = $pdo->prepare("SELECT Imagem_Not_Null FROM Pragas_Surtos WHERE ID_Usuario = :uid");
       $stmtPragas->bindParam(':uid', $delUserId, PDO::PARAM_INT);
       $stmtPragas->execute();
-      $pragasOriginais = $stmtPragas->fetchAll(PDO::FETCH_ASSOC);
-
-      foreach ($pragasOriginais as $orig) {
-        $origId = $orig['ID'];
-
-        // Buscar imagens de todas as entradas relacionadas (original + atualizações)
-        $stmtImgs = $pdo->prepare("SELECT Imagem_Not_Null FROM Pragas_Surtos WHERE ID = :id OR ID_Praga_Original = :id");
-        $stmtImgs->bindParam(':id', $origId, PDO::PARAM_INT);
-        $stmtImgs->execute();
-        $imgs = $stmtImgs->fetchAll(PDO::FETCH_ASSOC);
-        foreach ($imgs as $im) {
-          if (!empty($im['Imagem_Not_Null'])) {
-            $filePath = $_SERVER['DOCUMENT_ROOT'] . '/uploads/pragas/' . $im['Imagem_Not_Null'];
-            if (file_exists($filePath)) {
-              @unlink($filePath);
-            }
-          }
-        }
-
-        // Excluir registros originais e históricos
-        $stmtDelPr = $pdo->prepare("DELETE FROM Pragas_Surtos WHERE ID = :id OR ID_Praga_Original = :id");
-        $stmtDelPr->bindParam(':id', $origId, PDO::PARAM_INT);
-        $stmtDelPr->execute();
-      }
-
-      // Em segundo lugar: remover quaisquer registros de praga que ainda possam ter ID_Usuario = delUserId
-      $stmtCleanup = $pdo->prepare("SELECT Imagem_Not_Null FROM Pragas_Surtos WHERE ID_Usuario = :uid");
-      $stmtCleanup->bindParam(':uid', $delUserId, PDO::PARAM_INT);
-      $stmtCleanup->execute();
-      $leftoverImgs = $stmtCleanup->fetchAll(PDO::FETCH_ASSOC);
-      foreach ($leftoverImgs as $li) {
-        if (!empty($li['Imagem_Not_Null'])) {
-          $filePath = $_SERVER['DOCUMENT_ROOT'] . '/uploads/pragas/' . $li['Imagem_Not_Null'];
+      foreach ($stmtPragas->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        if (!empty($row['Imagem_Not_Null'])) {
+          $filePath = $_SERVER['DOCUMENT_ROOT'] . '/uploads/pragas/' . $row['Imagem_Not_Null'];
           if (file_exists($filePath)) {
             @unlink($filePath);
           }
         }
       }
-      $stmtDelAll = $pdo->prepare("DELETE FROM Pragas_Surtos WHERE ID_Usuario = :uid");
-      $stmtDelAll->bindParam(':uid', $delUserId, PDO::PARAM_INT);
-      $stmtDelAll->execute();
-
-      // Buscar imagem do usuário e remover
+      // Remover imagem do perfil do usuário
       $stmtImg = $pdo->prepare("SELECT Imagem FROM Usuarios WHERE id = :id");
       $stmtImg->bindParam(':id', $delUserId, PDO::PARAM_INT);
       $stmtImg->execute();
@@ -139,16 +102,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
       }
 
-      // Finalmente: excluir o usuário
-      $stmtDel = $pdo->prepare("DELETE FROM Usuarios WHERE id = :id");
-      $stmtDel->bindParam(':id', $delUserId, PDO::PARAM_INT);
-      $stmtDel->execute();
-      header('Location: filtros_usuarios.php?msg=usuario_excluido');
+      require_once(BASE_URL . '/database/excluir_usuario_cascata.php');
+      excluir_usuario_cascata($pdo, $delUserId);
+
+      if ($delUserId == $usuarioID) {
+        session_destroy();
+        header('Location: ../login/login.php?conta_excluida=1');
+      } else {
+        header('Location: filtros_usuarios.php?msg=usuario_excluido');
+      }
       exit;
-    } catch (PDOException $e) {
-      header('Location: filtros_usuarios.php?erro=erro_excluir');
-      exit;
-    }
+  } catch (PDOException $e) {
+    header('Location: filtros_usuarios.php?erro=erro_excluir');
+    exit;
   }
 }
 
@@ -224,6 +190,25 @@ $dados = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </div>
       </header>
       <div class="content content-filtros">
+    <?php if (!empty($_GET['msg']) && $_GET['msg'] === 'usuario_excluido'): ?>
+      <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> Usuário excluído com sucesso.
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+      </div>
+    <?php endif; ?>
+    <?php if (!empty($_GET['erro'])): ?>
+      <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i>
+        <?php
+        $erro = $_GET['erro'];
+        if ($erro === 'erro_excluir') echo 'Não foi possível excluir o usuário. Tente novamente.';
+        elseif ($erro === 'id_invalido') echo 'ID do usuário inválido.';
+        elseif ($erro === 'acesso_negado') echo 'Acesso negado.';
+        else echo htmlspecialchars($erro);
+        ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+      </div>
+    <?php endif; ?>
     <div class="tabela-container tabela-container-filtros">
       <div class="filtros-pragas-header filtros-usuarios-header">
         <h2 class="filtros-titulo"><i class="bi bi-people-fill"></i> Filtros de Usuários</h2>
@@ -278,14 +263,15 @@ $dados = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
                   <div class="card-footer bg-transparent border-top-0">
                     <div class="d-grid gap-2">
-                      <a href="perfil.php?id=<?= $user['id']; ?>"
+                      <?php $userId = (int)($user['id'] ?? $user['ID'] ?? 0); ?>
+                      <a href="perfil.php?id=<?= $userId; ?>"
                         class="btn btn-primary btn-sm">
                         <i class="bi bi-eye"></i> Ver Detalhes
                       </a>
                       <?php if ($isAdmin): ?>
-                        <form method="post" onsubmit="return confirm('Confirma a exclusão deste usuário? Esta ação não pode ser desfeita.');">
+                        <form method="post" action="filtros_usuarios.php" onsubmit="return confirm('Confirma a exclusão deste usuário? Esta ação não pode ser desfeita.');">
                           <input type="hidden" name="action" value="delete_user">
-                          <input type="hidden" name="user_id" value="<?= $user['id']; ?>">
+                          <input type="hidden" name="user_id" value="<?= $userId; ?>">
                           <button type="submit" class="btn btn-danger btn-sm mt-2">
                             <i class="bi bi-trash"></i> Excluir Usuário
                           </button>

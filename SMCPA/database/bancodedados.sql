@@ -32,14 +32,26 @@ CREATE TABLE Administrador (
 
 -- =========================
 -- TABELA: Feedback
+-- (Inclui: avaliação por estrelas, usabilidade, dados do autor quando excluído, FK ON DELETE SET NULL)
 -- =========================
 CREATE TABLE Feedback (
 	ID INT NOT NULL AUTO_INCREMENT,
 	Mensagem TEXT NOT NULL,
-	Usuario INT NOT NULL,
+	Usuario INT NULL COMMENT 'ID do usuário; NULL se autor foi excluído (dados em Autor_*)',
 	Data_Envio DATE DEFAULT (CURRENT_DATE),
+	Avaliacao_Estrelas DECIMAL(3,2) NULL COMMENT 'Nota 1 a 5 (pode ser decimal)',
+	Usabilidade_Facilidade TINYINT NULL COMMENT 'O sistema é fácil de usar? 1-5',
+	Usabilidade_Organizacao TINYINT NULL COMMENT 'As informações estão organizadas? 1-5',
+	Usabilidade_Registro TINYINT NULL COMMENT 'O processo de registro é simples? 1-5',
+	Usabilidade_Relatorio TINYINT NULL COMMENT 'O relatório facilita a análise? 1-5',
+	Usabilidade_Decisao TINYINT NULL COMMENT 'O sistema auxilia na decisão? 1-5',
+	Usabilidade_Usaria TINYINT NULL COMMENT 'Utilizaria em situação real? 1-5',
+	Autor_Nome VARCHAR(255) NULL COMMENT 'Nome do autor (preenchido quando usuário é excluído)',
+	Autor_Email VARCHAR(255) NULL COMMENT 'Email do autor (preenchido quando usuário é excluído)',
+	Autor_Localizacao VARCHAR(255) NULL COMMENT 'Localização do autor (preenchido quando usuário é excluído)',
+	Autor_Data_Cadastro DATE NULL COMMENT 'Data de cadastro do autor (preenchido quando usuário é excluído)',
 	PRIMARY KEY (ID),
-	FOREIGN KEY (Usuario) REFERENCES Usuarios(ID)
+	CONSTRAINT Feedback_ibfk_1 FOREIGN KEY (Usuario) REFERENCES Usuarios(ID) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- =========================

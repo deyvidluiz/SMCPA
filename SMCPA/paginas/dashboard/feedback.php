@@ -143,9 +143,12 @@ if ($isAdmin) {
       SELECT f.ID, f.Mensagem, f.Data_Envio, f.Usuario AS ID_Usuario,
              f.Avaliacao_Estrelas, f.Usabilidade_Facilidade, f.Usabilidade_Organizacao,
              f.Usabilidade_Registro, f.Usabilidade_Relatorio, f.Usabilidade_Decisao, f.Usabilidade_Usaria,
-             u.usuario AS nome_usuario, u.Email AS email_usuario
+             COALESCE(u.usuario, f.Autor_Nome) AS nome_usuario,
+             COALESCE(u.Email, f.Autor_Email) AS email_usuario,
+             COALESCE(u.localizacao, f.Autor_Localizacao) AS localizacao_usuario,
+             COALESCE(u.Data_Cadastro, f.Autor_Data_Cadastro) AS data_cadastro_usuario
       FROM Feedback f
-      INNER JOIN Usuarios u ON f.Usuario = u.ID
+      LEFT JOIN Usuarios u ON f.Usuario = u.ID
       ORDER BY f.Data_Envio DESC, f.ID DESC
     ");
     $feedbacks = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -154,14 +157,32 @@ if ($isAdmin) {
     try {
       $stmt = $pdo->query("
         SELECT f.ID, f.Mensagem, f.Data_Envio, f.Usuario AS ID_Usuario,
-               u.usuario AS nome_usuario, u.Email AS email_usuario
+               COALESCE(u.usuario, f.Autor_Nome) AS nome_usuario,
+               COALESCE(u.Email, f.Autor_Email) AS email_usuario,
+               COALESCE(u.localizacao, f.Autor_Localizacao) AS localizacao_usuario,
+               COALESCE(u.Data_Cadastro, f.Autor_Data_Cadastro) AS data_cadastro_usuario
         FROM Feedback f
-        INNER JOIN Usuarios u ON f.Usuario = u.ID
+        LEFT JOIN Usuarios u ON f.Usuario = u.ID
         ORDER BY f.Data_Envio DESC, f.ID DESC
       ");
       $feedbacks = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (PDOException $e2) {
       error_log("Feedback admin fallback: " . $e2->getMessage());
+      try {
+        $stmt = $pdo->query("
+          SELECT f.ID, f.Mensagem, f.Data_Envio, f.Usuario AS ID_Usuario,
+                 f.Avaliacao_Estrelas, f.Usabilidade_Facilidade, f.Usabilidade_Organizacao,
+                 f.Usabilidade_Registro, f.Usabilidade_Relatorio, f.Usabilidade_Decisao, f.Usabilidade_Usaria,
+                 u.usuario AS nome_usuario, u.Email AS email_usuario,
+                 u.localizacao AS localizacao_usuario, u.Data_Cadastro AS data_cadastro_usuario
+          FROM Feedback f
+          INNER JOIN Usuarios u ON f.Usuario = u.ID
+          ORDER BY f.Data_Envio DESC, f.ID DESC
+        ");
+        $feedbacks = $stmt->fetchAll(PDO::FETCH_ASSOC);
+      } catch (PDOException $e3) {
+        error_log("Feedback admin fallback 2: " . $e3->getMessage());
+      }
     }
   }
 }
@@ -323,6 +344,16 @@ if (!$isAdmin && $usuarioID) {
                     <p class="mb-1 text-muted small">
                       <i class="bi bi-envelope"></i> <?= htmlspecialchars($fb['email_usuario'] ?? '-') ?>
                     </p>
+                    <?php if (!empty($fb['localizacao_usuario'])): ?>
+                    <p class="mb-1 text-muted small">
+                      <i class="bi bi-geo-alt"></i> <?= htmlspecialchars($fb['localizacao_usuario']) ?>
+                    </p>
+                    <?php endif; ?>
+                    <?php if (!empty($fb['data_cadastro_usuario'])): ?>
+                    <p class="mb-1 text-muted small">
+                      <i class="bi bi-calendar-check"></i> Cadastro em <?= date('d/m/Y', strtotime($fb['data_cadastro_usuario'])) ?>
+                    </p>
+                    <?php endif; ?>
                     <p class="mb-2">
                       <span class="badge bg-secondary"><?= htmlspecialchars($tipoFb) ?></span>
                       <span class="text-muted ms-2 small"><i class="bi bi-calendar3"></i> <?= $dataFb ?></span>

@@ -20,7 +20,7 @@ VALUES (
     'taylor@gmail.com',
     1,
     NULL
-);
+); 
 
 INSERT INTO Administrador (usuario, senha)
 VALUES (

@@ -277,7 +277,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deletar_conta']) && $
             $resultado = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (password_verify($senhaConfirmacao, $resultado['senha'])) {
-                // Deletar imagem do usuário
+                // Remover arquivos de imagem (pragas e perfil) antes de apagar do BD
+                try {
+                    $stmtPragas = $pdo->prepare("SELECT Imagem_Not_Null FROM Pragas_Surtos WHERE ID_Usuario = :uid");
+                    $stmtPragas->bindParam(':uid', $usuarioID, PDO::PARAM_INT);
+                    $stmtPragas->execute();
+                    foreach ($stmtPragas->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                        if (!empty($row['Imagem_Not_Null'])) {
+                            $fp = $_SERVER['DOCUMENT_ROOT'] . '/uploads/pragas/' . $row['Imagem_Not_Null'];
+                            if (file_exists($fp)) {
+                                @unlink($fp);
+                            }
+                        }
+                    }
+                } catch (PDOException $e) {}
                 if (!empty($usuario['Imagem']) && $usuario['Imagem'] !== 'default.jpg') {
                     $imagemPath = $_SERVER['DOCUMENT_ROOT'] . '/uploads/usuarios/' . $usuario['Imagem'];
                     if (file_exists($imagemPath)) {
@@ -285,21 +298,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deletar_conta']) && $
                     }
                 }
 
-                // Deletar pragas associadas - com tratamento de erro
-                try {
-                    $stmtDelPragas = $pdo->prepare("DELETE FROM Pragas_Surtos WHERE ID_Usuario = :usuarioID");
-                    $stmtDelPragas->bindParam(':usuarioID', $usuarioID, PDO::PARAM_INT);
-                    $stmtDelPragas->execute();
-                } catch (PDOException $e) {
-                    // Se a coluna ID_Usuario não existir, ignora
-                }
+                require_once(BASE_URL . '/database/excluir_usuario_cascata.php');
+                excluir_usuario_cascata($pdo, $usuarioID);
 
-                // Deletar o usuário
-                $stmtDelUser = $pdo->prepare("DELETE FROM Usuarios WHERE id = :usuarioID");
-                $stmtDelUser->bindParam(':usuarioID', $usuarioID, PDO::PARAM_INT);
-                $stmtDelUser->execute();
-
-                // Destruir sessão e redirecionar
                 session_destroy();
                 header("Location: ../login/login.php?conta_excluida=1");
                 exit;

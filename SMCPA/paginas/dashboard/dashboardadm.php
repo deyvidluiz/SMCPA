@@ -114,24 +114,47 @@ if (isset($_SESSION['is_admin'])) {
 
 // Função para excluir usuários (pode ser chamada de outras páginas)
 if (isset($_GET['delete_usuario'])) {
-  $usuario_id = $_GET['delete_usuario'];
+  $usuario_id = (int) $_GET['delete_usuario'];
 
-  try {
-    // Primeiro, deletar todas as pragas associadas ao usuário
-    $stmtDelPragas = $pdo->prepare("DELETE FROM Pragas_Surtos WHERE ID_Usuario = :usuarioID");
-    $stmtDelPragas->bindParam(':usuarioID', $usuario_id, PDO::PARAM_INT);
-    $stmtDelPragas->execute();
+  if ($usuario_id > 0) {
+    try {
+      // Remover arquivos de imagem das pragas e do perfil (antes de apagar do BD)
+      $stmtPragas = $pdo->prepare("SELECT Imagem_Not_Null FROM Pragas_Surtos WHERE ID_Usuario = :uid");
+      $stmtPragas->bindParam(':uid', $usuario_id, PDO::PARAM_INT);
+      $stmtPragas->execute();
+      foreach ($stmtPragas->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        if (!empty($row['Imagem_Not_Null'])) {
+          $filePath = $_SERVER['DOCUMENT_ROOT'] . '/uploads/pragas/' . $row['Imagem_Not_Null'];
+          if (file_exists($filePath)) {
+            @unlink($filePath);
+          }
+        }
+      }
+      $stmtImg = $pdo->prepare("SELECT Imagem FROM Usuarios WHERE id = :id");
+      $stmtImg->bindParam(':id', $usuario_id, PDO::PARAM_INT);
+      $stmtImg->execute();
+      $rowImg = $stmtImg->fetch(PDO::FETCH_ASSOC);
+      if ($rowImg && !empty($rowImg['Imagem'])) {
+        $filePath = $_SERVER['DOCUMENT_ROOT'] . '/uploads/usuarios/' . $rowImg['Imagem'];
+        if (file_exists($filePath)) {
+          @unlink($filePath);
+        }
+      }
 
-    // Depois, deletar o usuário
-    $stmtDeleteusuario = $pdo->prepare("DELETE FROM Usuarios WHERE id = :id");
-    $stmtDeleteusuario->bindParam(':id', $usuario_id, PDO::PARAM_INT);
-    $stmtDeleteusuario->execute();
+      require_once(BASE_URL . '/database/excluir_usuario_cascata.php');
+      excluir_usuario_cascata($pdo, $usuario_id);
 
-    header('location: dashboardadm.php?sucesso=usuario_excluido');
-    exit;
-  } catch (PDOException $e) {
-    header('location: dashboardadm.php?erro=' . urlencode('Erro ao excluir usuário: ' . $e->getMessage()));
-    exit;
+      if ($usuario_id == $usuarioID) {
+        session_destroy();
+        header('location: ../login/login.php?conta_excluida=1');
+      } else {
+        header('location: dashboardadm.php?sucesso=usuario_excluido');
+      }
+      exit;
+    } catch (PDOException $e) {
+      header('location: dashboardadm.php?erro=' . urlencode('Erro ao excluir usuário: ' . $e->getMessage()));
+      exit;
+    }
   }
 }
 

@@ -16,6 +16,4 @@ return [
     'smtp_senha'     => 'rudrthnbfwhmogoq',
     'remetente'      => 'SMCPA2025.ofc@gmail.com',
     'nome_remetente' => 'SMCPA',
-    // Opcional: forçar URL base do link "Esqueci senha" (ex.: http://localhost:8000 quando usar php -S)
-    'url_base' => 'http://localhost:8000',
 ];

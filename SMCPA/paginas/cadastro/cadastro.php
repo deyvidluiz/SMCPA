@@ -11,6 +11,108 @@ function normalizaString($str) {
     return $str;
 }
 
+// Função para verificar se o email é válido e se o domínio existe
+function validarEmailReal($email) {
+    // Valida o formato do email
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return false;
+    }
+    
+    // Extrai o domínio do email (em minúsculas para comparação)
+    $dominio = strtolower(substr(strrchr($email, "@"), 1));
+    
+    // Lista de domínios conhecidos que não permitem verificação SMTP direta
+    // Para estes, apenas verificamos se o domínio existe
+    $dominiosSemVerificacaoSMTP = [
+        'gmail.com', 'googlemail.com', 'outlook.com', 'hotmail.com', 
+        'live.com', 'yahoo.com', 'yahoo.com.br', 'icloud.com',
+        'protonmail.com', 'proton.me', 'mail.com'
+    ];
+    
+    // Verifica se o domínio está na lista de exceções
+    $isDominioExcecao = in_array($dominio, $dominiosSemVerificacaoSMTP);
+    
+    // Verifica se o domínio tem registros MX (necessários para receber emails)
+    $temMX = checkdnsrr($dominio, "MX");
+    $temA = checkdnsrr($dominio, "A");
+    
+    if (!$temMX && !$temA) {
+        return false; // Domínio não existe
+    }
+    
+    // Se for um domínio de exceção, apenas verifica DNS e formato
+    if ($isDominioExcecao) {
+        return true; // Aceita se o formato estiver correto e o domínio existir
+    }
+    
+    // Para outros domínios, tenta verificação SMTP mais rigorosa
+    $mxRecords = [];
+    if (getmxrr($dominio, $mxRecords) && !empty($mxRecords)) {
+        $mxHost = $mxRecords[0];
+    } else {
+        $mxHost = $dominio;
+    }
+    
+    // Tenta verificar via SMTP
+    return verificarEmailSMTP($email, $mxHost);
+}
+
+// Função auxiliar para verificar email via SMTP
+function verificarEmailSMTP($email, $mxHost) {
+    // Timeout curto para não travar o sistema
+    $socket = @fsockopen($mxHost, 25, $errno, $errstr, 3);
+    
+    if (!$socket) {
+        // Se não conseguir conectar, assume válido (servidor pode estar temporariamente indisponível)
+        // Mas pelo menos verificamos que o domínio existe
+        return true;
+    }
+    
+    // Configura timeout para leitura
+    stream_set_timeout($socket, 3);
+    
+    // Lê a resposta inicial do servidor
+    $response = @fgets($socket);
+    if (!$response || substr($response, 0, 3) != '220') {
+        @fclose($socket);
+        return true; // Não conseguiu validar, mas não bloqueia
+    }
+    
+    // Envia HELO
+    @fputs($socket, "HELO " . (isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost') . "\r\n");
+    $response = @fgets($socket);
+    
+    // Envia MAIL FROM
+    @fputs($socket, "MAIL FROM: <noreply@" . (isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost') . ">\r\n");
+    $response = @fgets($socket);
+    
+    // Tenta verificar o RCPT TO (destinatário)
+    @fputs($socket, "RCPT TO: <" . $email . ">\r\n");
+    $response = @fgets($socket);
+    
+    @fputs($socket, "QUIT\r\n");
+    @fclose($socket);
+    
+    if (!$response) {
+        return true; // Não conseguiu validar
+    }
+    
+    $codigo = substr($response, 0, 3);
+    
+    // Se o servidor retornou 250, o email existe
+    if ($codigo == '250') {
+        return true;
+    }
+    
+    // Se retornou 550, 551, 553 ou 554, o email não existe ou é inválido
+    if (in_array($codigo, ['550', '551', '553', '554'])) {
+        return false; // Email não existe
+    }
+    
+    // Para outros códigos (incluindo bloqueios de política), assume válido
+    return true;
+}
+
 // Variáveis para manter os dados do formulário em caso de erro
 $usuario = '';
 $email = '';
@@ -29,9 +131,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $email   = $_POST['email'];
         $localizacao = trim($_POST['localizacao'] ?? '');
 
-        // Cria uma instância da classe Database e faz a conexão
-        $db   = new Database();
-        $conn = $db->conexao();
+        // Valida o email (formato e existência do domínio)
+        if (!validarEmailReal($email)) {
+            $mensagemErro = 'E-mail inválido ou domínio inexistente. Por favor, verifique o e-mail informado.';
+        } else {
+            // Cria uma instância da classe Database e faz a conexão
+            $db   = new Database();
+            $conn = $db->conexao();
 
         // ====== TRATAMENTO DA IMAGEM (OPCIONAL) ======
         $arquivo     = isset($_FILES['imagem']) ? $_FILES['imagem'] : null;
@@ -161,6 +267,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 // Em caso de erro, mantém os dados preenchidos
                 $mensagemErro = 'Erro ao cadastrar o usuário: ' . $e->getMessage();
             }
+        }
         }
     } else {
         $mensagemErro = 'Erro: Todos os campos devem ser preenchidos!';

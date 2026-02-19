@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['email'])) {
       $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
       $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
       $config_email = is_file(BASE_URL . '/config_email.php') ? include BASE_URL . '/config_email.php' : [];
-      $url_base = !empty($config_email['url_base']) ? rtrim($config_email['url_base'], '/') : ($scheme . '://' . $host . '/SMCPA');
+      $url_base = !empty($config_email['url_base']) ? rtrim($config_email['url_base'], '/') : ($scheme . '://' . $host /**. '/SMCPA' */);
       $linkRedefinir = $url_base . '/SMCPA/paginas/esqsenha/redefinir_senha.php?token=' . urlencode($token);
 
       $assunto = 'Redefinição de senha - SMCPA';

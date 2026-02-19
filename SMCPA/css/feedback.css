@@ -85,6 +85,241 @@
   color: #6b7280;
 }
 
+/* ----- Avaliação por estrelas ----- */
+.avaliacao-estrelas-wrap .form-label {
+  display: block;
+}
+
+.avaliacao-nota-linha {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.avaliacao-nota-linha .estrelas {
+  flex-shrink: 0;
+}
+
+.nota-exibida {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1a3d24;
+  min-width: 2rem;
+}
+
+.nota-exibida:empty {
+  display: none;
+}
+
+.estrelas {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.estrela {
+  width: 42px;
+  height: 42px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #d1d5db;
+  transition: color 0.15s, transform 0.1s;
+  position: relative;
+}
+
+.estrela i {
+  font-size: 2rem;
+}
+
+.estrelas .estrela .bi-star {
+  color: #d1d5db;
+}
+
+.estrelas .estrela .bi-star-fill,
+.estrelas .estrela .bi-star-half {
+  color: #eab308;
+}
+
+.estrela:hover .bi-star {
+  color: #fbbf24;
+}
+
+.estrela:hover {
+  transform: scale(1.05);
+}
+
+/* ----- Questionário de usabilidade (escala 1-5) ----- */
+.feedback-questionario .form-label {
+  font-weight: 600;
+  color: #1a3d24;
+}
+
+.questionario-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pergunta-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #f9fafb;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+}
+
+.pergunta-texto {
+  flex: 1 1 220px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.escala-1-5 {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.escala-opcao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin: 0;
+  font-size: 0.9rem;
+  color: #6b7280;
+}
+
+.escala-opcao input {
+  margin: 0 4px 0 0;
+  cursor: pointer;
+  accent-color: #16a34a;
+}
+
+.escala-opcao:hover,
+.escala-opcao input:checked + span {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+/* ----- Média de avaliação (estrelas) ----- */
+.media-avaliacao-card {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+}
+
+.media-avaliacao-titulo {
+  width: 100%;
+  font-weight: 600;
+  color: #166534;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.media-avaliacao-titulo i {
+  font-size: 1.25rem;
+}
+
+.media-avaliacao-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.media-avaliacao-stars .bi-star-fill,
+.media-avaliacao-stars .bi-star-half,
+.media-avaliacao-stars .bi-star {
+  font-size: 1.75rem;
+}
+
+.media-avaliacao-numero {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #166534;
+}
+
+.media-avaliacao-total {
+  color: #4b5563;
+  font-size: 0.9rem;
+}
+
+.media-avaliacao-user {
+  padding: 14px 20px;
+  margin-bottom: 20px;
+}
+
+.media-avaliacao-user .media-avaliacao-label {
+  font-weight: 600;
+  color: #1a3d24;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.media-avaliacao-stars-inline .bi-star-fill,
+.media-avaliacao-stars-inline .bi-star-half,
+.media-avaliacao-stars-inline .bi-star {
+  font-size: 1.25rem;
+}
+
+.media-avaliacao-numero-inline {
+  font-weight: 700;
+  color: #16a34a;
+  font-size: 1.1rem;
+}
+
+/* ----- Admin: exibição da avaliação ----- */
+.avaliacao-admin {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.avaliacao-admin .bi-star-fill {
+  font-size: 1rem;
+}
+
+.feedback-usabilidade-admin {
+  background: #f0fdf4;
+  border-radius: 8px;
+  padding: 10px 14px;
+  border: 1px solid #bbf7d0;
+}
+
+.usab-item {
+  display: block;
+  margin-bottom: 4px;
+  color: #374151;
+}
+
+.usab-item:last-child {
+  margin-bottom: 0;
+}
+
+.usab-pergunta {
+  color: #4b5563;
+}
+
 .feedback-info {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -183,9 +418,7 @@
   .feedback-grid-admin {
     grid-template-columns: repeat(2, 1fr);
   }
-}
-
-@media (min-width: 1201px) {
+}@media (min-width: 1201px) {
   .feedback-grid-admin {
     grid-template-columns: repeat(2, 1fr);
   }

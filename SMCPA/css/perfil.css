@@ -71,9 +71,7 @@ body {
   .perfil-imagem {
     width: 100px;
     height: 100px;
-  }
-
-  .card-body {
+  }  .card-body {
     padding: 14px;
   }
 }

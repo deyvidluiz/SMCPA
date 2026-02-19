@@ -63,15 +63,40 @@ $mensagemSucesso = '';
 $mensagemErro = '';
 $tipo = '';
 $mensagem = '';
+$avaliacaoEstrelas = '';
+$usabFacilidade = isset($_POST['usabilidade_facilidade']) ? (int) $_POST['usabilidade_facilidade'] : null;
+$usabOrganizacao = isset($_POST['usabilidade_organizacao']) ? (int) $_POST['usabilidade_organizacao'] : null;
+$usabRegistro = isset($_POST['usabilidade_registro']) ? (int) $_POST['usabilidade_registro'] : null;
+$usabRelatorio = isset($_POST['usabilidade_relatorio']) ? (int) $_POST['usabilidade_relatorio'] : null;
+$usabDecisao = isset($_POST['usabilidade_decisao']) ? (int) $_POST['usabilidade_decisao'] : null;
+$usabUsaria = isset($_POST['usabilidade_usaria']) ? (int) $_POST['usabilidade_usaria'] : null;
 
 if (!$isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['enviar_feedback'])) {
   $tipo = trim($_POST['tipo'] ?? '');
   $mensagem = trim($_POST['mensagem'] ?? '');
+  $rawEstrelas = isset($_POST['avaliacao_estrelas']) ? trim((string) $_POST['avaliacao_estrelas']) : '';
+  $avaliacaoEstrelas = null;
+  if ($rawEstrelas !== '') {
+    $raw = str_replace(',', '.', $rawEstrelas);
+    if (is_numeric($raw)) {
+      $v = (float) $raw;
+      $v = max(1, min(5, $v));
+      $avaliacaoEstrelas = round($v * 2) / 2;
+    }
+  }
+  $usabFacilidade = isset($_POST['usabilidade_facilidade']) ? (int) $_POST['usabilidade_facilidade'] : null;
+  $usabOrganizacao = isset($_POST['usabilidade_organizacao']) ? (int) $_POST['usabilidade_organizacao'] : null;
+  $usabRegistro = isset($_POST['usabilidade_registro']) ? (int) $_POST['usabilidade_registro'] : null;
+  $usabRelatorio = isset($_POST['usabilidade_relatorio']) ? (int) $_POST['usabilidade_relatorio'] : null;
+  $usabDecisao = isset($_POST['usabilidade_decisao']) ? (int) $_POST['usabilidade_decisao'] : null;
+  $usabUsaria = isset($_POST['usabilidade_usaria']) ? (int) $_POST['usabilidade_usaria'] : null;
 
   if (empty($usuarioID)) {
     $mensagemErro = 'Erro: Usuário não identificado. Por favor, faça login novamente.';
   } elseif (empty($tipo)) {
     $mensagemErro = 'Por favor, selecione o tipo de feedback.';
+  } elseif ($avaliacaoEstrelas === null || $avaliacaoEstrelas < 1 || $avaliacaoEstrelas > 5) {
+    $mensagemErro = 'Escolha uma nota nas estrelas (1 a 5).';
   } elseif (empty($mensagem)) {
     $mensagemErro = 'Por favor, preencha a mensagem.';
   } elseif (strlen($mensagem) < 10) {
@@ -81,19 +106,31 @@ if (!$isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['enviar_f
   } else {
     try {
       $mensagemCompleta = "[Tipo: " . ucfirst($tipo) . "]\n\n" . $mensagem;
-      $stmt = $pdo->prepare("INSERT INTO Feedback (Usuario, Mensagem) VALUES (:usuario_id, :mensagem)");
+      $stmt = $pdo->prepare("
+        INSERT INTO Feedback (Usuario, Mensagem, Avaliacao_Estrelas, Usabilidade_Facilidade, Usabilidade_Organizacao, Usabilidade_Registro, Usabilidade_Relatorio, Usabilidade_Decisao, Usabilidade_Usaria)
+        VALUES (:usuario_id, :mensagem, :estrelas, :u_facilidade, :u_organizacao, :u_registro, :u_relatorio, :u_decisao, :u_usaria)
+      ");
       $stmt->bindParam(':usuario_id', $usuarioID, PDO::PARAM_INT);
       $stmt->bindParam(':mensagem', $mensagemCompleta, PDO::PARAM_STR);
+      $stmt->bindValue(':estrelas', $avaliacaoEstrelas >= 1 ? $avaliacaoEstrelas : null, PDO::PARAM_STR);
+      $stmt->bindValue(':u_facilidade', ($usabFacilidade >= 1 && $usabFacilidade <= 5) ? $usabFacilidade : null, PDO::PARAM_INT);
+      $stmt->bindValue(':u_organizacao', ($usabOrganizacao >= 1 && $usabOrganizacao <= 5) ? $usabOrganizacao : null, PDO::PARAM_INT);
+      $stmt->bindValue(':u_registro', ($usabRegistro >= 1 && $usabRegistro <= 5) ? $usabRegistro : null, PDO::PARAM_INT);
+      $stmt->bindValue(':u_relatorio', ($usabRelatorio >= 1 && $usabRelatorio <= 5) ? $usabRelatorio : null, PDO::PARAM_INT);
+      $stmt->bindValue(':u_decisao', ($usabDecisao >= 1 && $usabDecisao <= 5) ? $usabDecisao : null, PDO::PARAM_INT);
+      $stmt->bindValue(':u_usaria', ($usabUsaria >= 1 && $usabUsaria <= 5) ? $usabUsaria : null, PDO::PARAM_INT);
       if ($stmt->execute()) {
-        $mensagemSucesso = 'Feedback enviado com sucesso! Obrigado pela sua contribuição.';
+        $mensagemSucesso = 'Enviado. Obrigado.';
         $tipo = '';
         $mensagem = '';
+        $avaliacaoEstrelas = null;
+        $usabFacilidade = $usabOrganizacao = $usabRegistro = $usabRelatorio = $usabDecisao = $usabUsaria = null;
       } else {
         $mensagemErro = 'Erro ao enviar feedback. Por favor, tente novamente.';
       }
     } catch (PDOException $e) {
       error_log("Feedback: " . $e->getMessage());
-      $mensagemErro = 'Erro ao enviar feedback. Por favor, tente novamente.';
+      $mensagemErro = 'Erro ao enviar feedback. Verifique se executou o script database/alter_feedback_usabilidade.sql no banco.';
     }
   }
 }
@@ -104,6 +141,8 @@ if ($isAdmin) {
   try {
     $stmt = $pdo->query("
       SELECT f.ID, f.Mensagem, f.Data_Envio, f.Usuario AS ID_Usuario,
+             f.Avaliacao_Estrelas, f.Usabilidade_Facilidade, f.Usabilidade_Organizacao,
+             f.Usabilidade_Registro, f.Usabilidade_Relatorio, f.Usabilidade_Decisao, f.Usabilidade_Usaria,
              u.usuario AS nome_usuario, u.Email AS email_usuario
       FROM Feedback f
       INNER JOIN Usuarios u ON f.Usuario = u.ID
@@ -112,7 +151,35 @@ if ($isAdmin) {
     $feedbacks = $stmt->fetchAll(PDO::FETCH_ASSOC);
   } catch (PDOException $e) {
     error_log("Feedback admin: " . $e->getMessage());
+    try {
+      $stmt = $pdo->query("
+        SELECT f.ID, f.Mensagem, f.Data_Envio, f.Usuario AS ID_Usuario,
+               u.usuario AS nome_usuario, u.Email AS email_usuario
+        FROM Feedback f
+        INNER JOIN Usuarios u ON f.Usuario = u.ID
+        ORDER BY f.Data_Envio DESC, f.ID DESC
+      ");
+      $feedbacks = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e2) {
+      error_log("Feedback admin fallback: " . $e2->getMessage());
+    }
   }
+}
+
+// ---------- Média de avaliação (estrelas) - admin e usuário ----------
+$mediaEstrelas = null;
+$totalAvaliacoes = 0;
+try {
+  $stmt = $pdo->query("SELECT AVG(Avaliacao_Estrelas) AS media, COUNT(Avaliacao_Estrelas) AS total FROM Feedback WHERE Avaliacao_Estrelas IS NOT NULL AND Avaliacao_Estrelas BETWEEN 1 AND 5");
+  if ($stmt) {
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($row && $row['total'] > 0) {
+      $mediaEstrelas = (float) $row['media'];
+      $totalAvaliacoes = (int) $row['total'];
+    }
+  }
+} catch (PDOException $e) {
+  // Coluna pode não existir ainda
 }
 
 // Extrair tipo da mensagem (formato: [Tipo: X])
@@ -130,6 +197,36 @@ function extrairMensagemSemTipo($msg)
     return trim(substr($msg, strlen($m[0])));
   }
   return trim($msg);
+}
+
+/** Renderiza HTML das estrelas conforme a média (0–5). Retorna array: html estrelas, texto número. */
+function renderizarMediaEstrelas($media)
+{
+  if ($media === null || $media < 0) {
+    return ['html' => '', 'texto' => '-'];
+  }
+  $media = min(5, max(0, (float) $media));
+  $cheias = (int) floor($media);
+  $resto = $media - $cheias;
+  $meia = ($resto >= 0.25 && $resto < 0.75) ? 1 : (($resto >= 0.75) ? 1 : 0);
+  if ($resto >= 0.75) {
+    $cheias += 1;
+    $meia = 0;
+  } elseif ($meia) {
+    $meia = 1;
+  }
+  $vazias = 5 - $cheias - $meia;
+  $html = '';
+  for ($i = 0; $i < $cheias; $i++) {
+    $html .= '<i class="bi bi-star-fill text-warning" aria-hidden="true"></i>';
+  }
+  if ($meia) {
+    $html .= '<i class="bi bi-star-half text-warning" aria-hidden="true"></i>';
+  }
+  for ($i = 0; $i < $vazias; $i++) {
+    $html .= '<i class="bi bi-star text-warning" aria-hidden="true"></i>';
+  }
+  return ['html' => $html, 'texto' => number_format($media, 1, ',', '')];
 }
 
 // Dados do usuário para o formulário (apenas quando não é admin)
@@ -191,13 +288,27 @@ if (!$isAdmin && $usuarioID) {
           <!-- ADMIN: Grade de feedbacks -->
           <div class="feedback-admin-container">
             <div class="feedback-header">
-              <h1><i class="bi bi-chat-dots-fill"></i> Relatório de Feedbacks</h1>
-              <p>Feedbacks enviados pelos usuários do sistema.</p>
+              <h1><i class="bi bi-chat-dots-fill"></i> Feedbacks</h1>
+              <p>O que os usuários enviaram.</p>
             </div>
+
+            <?php
+            $mediaRender = $mediaEstrelas !== null ? renderizarMediaEstrelas($mediaEstrelas) : ['html' => '', 'texto' => '-'];
+            if ($mediaEstrelas !== null):
+            ?>
+            <div class="media-avaliacao-card">
+              <div class="media-avaliacao-titulo">Média das notas</div>
+              <div class="media-avaliacao-stars" aria-label="Média: <?= $mediaRender['texto'] ?> de 5">
+                <?= $mediaRender['html'] ?>
+              </div>
+              <div class="media-avaliacao-numero"><?= $mediaRender['texto'] ?> <span class="text-muted">/ 5</span></div>
+              <div class="media-avaliacao-total">(<?= $totalAvaliacoes ?> <?= $totalAvaliacoes === 1 ? 'avaliação' : 'avaliações' ?>)</div>
+            </div>
+            <?php endif; ?>
 
             <?php if (empty($feedbacks)): ?>
               <div class="alert alert-info">
-                <i class="bi bi-info-circle"></i> Nenhum feedback recebido até o momento.
+                Ainda não há feedbacks.
               </div>
             <?php else: ?>
               <div class="dashboard-grid feedback-grid-admin">
@@ -215,7 +326,37 @@ if (!$isAdmin && $usuarioID) {
                     <p class="mb-2">
                       <span class="badge bg-secondary"><?= htmlspecialchars($tipoFb) ?></span>
                       <span class="text-muted ms-2 small"><i class="bi bi-calendar3"></i> <?= $dataFb ?></span>
+                      <?php if (isset($fb['Avaliacao_Estrelas']) && $fb['Avaliacao_Estrelas'] !== null && $fb['Avaliacao_Estrelas'] !== ''): ?>
+                        <?php
+                        $notaFb = (float) $fb['Avaliacao_Estrelas'];
+                        $renderFb = renderizarMediaEstrelas($notaFb);
+                        ?>
+                        <span class="ms-2 avaliacao-admin" title="Nota: <?= $renderFb['texto'] ?>/5">
+                          <?= $renderFb['html'] ?>
+                        </span>
+                        <span class="ms-1 small text-muted"><?= $renderFb['texto'] ?>/5</span>
+                      <?php endif; ?>
                     </p>
+                    <?php
+                    $temUsabilidade = !empty($fb['Usabilidade_Facilidade']) || !empty($fb['Usabilidade_Organizacao']) || !empty($fb['Usabilidade_Registro']) || !empty($fb['Usabilidade_Relatorio']) || !empty($fb['Usabilidade_Decisao']) || !empty($fb['Usabilidade_Usaria']);
+                    if ($temUsabilidade):
+                      $perguntas = [
+                        'Usabilidade_Facilidade' => 'O sistema é fácil de usar?',
+                        'Usabilidade_Organizacao' => 'Informações organizadas de forma clara?',
+                        'Usabilidade_Registro' => 'Processo de registro simples?',
+                        'Usabilidade_Relatorio' => 'Relatório facilita a análise das ocorrências?',
+                        'Usabilidade_Decisao' => 'Sistema auxilia na tomada de decisão?',
+                        'Usabilidade_Usaria' => 'Utilizaria em situação real?',
+                      ];
+                    ?>
+                    <div class="feedback-usabilidade-admin mb-2">
+                      <?php foreach ($perguntas as $col => $txt): ?>
+                        <?php if (isset($fb[$col]) && $fb[$col] !== null && $fb[$col] !== ''): ?>
+                          <div class="usab-item small"><span class="usab-pergunta"><?= htmlspecialchars($txt) ?></span> <strong><?= (int)$fb[$col] ?>/5</strong></div>
+                        <?php endif; ?>
+                      <?php endforeach; ?>
+                    </div>
+                    <?php endif; ?>
                     <div class="feedback-mensagem">
                       <p class="mb-0"><?= nl2br(htmlspecialchars($mensagemFb)) ?></p>
                     </div>
@@ -228,9 +369,21 @@ if (!$isAdmin && $usuarioID) {
           <!-- USUÁRIO: Formulário de feedback -->
           <div class="feedback-container">
             <div class="feedback-header">
-              <h1><i class="bi bi-chat-dots"></i> Envie seu Feedback</h1>
-              <p>Sua opinião é muito importante para nós! Ajude-nos a melhorar o SMCPA.</p>
+              <h1><i class="bi bi-chat-dots"></i> Feedback</h1>
+              <p>Conte o que achou do SMCPA.</p>
             </div>
+
+            <?php
+            $mediaRenderUser = $mediaEstrelas !== null ? renderizarMediaEstrelas($mediaEstrelas) : null;
+            if ($mediaRenderUser !== null):
+            ?>
+            <div class="media-avaliacao-card media-avaliacao-user">
+              <span class="media-avaliacao-label"><i class="bi bi-star-fill"></i> Média das notas:</span>
+              <span class="media-avaliacao-stars media-avaliacao-stars-inline" aria-label="Média: <?= $mediaRenderUser['texto'] ?> de 5"><?= $mediaRenderUser['html'] ?></span>
+              <span class="media-avaliacao-numero-inline"><?= $mediaRenderUser['texto'] ?></span>
+              <span class="text-muted small">(<?= $totalAvaliacoes ?> <?= $totalAvaliacoes === 1 ? 'avaliação' : 'avaliações' ?>)</span>
+            </div>
+            <?php endif; ?>
 
             <?php if ($mensagemSucesso): ?>
               <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -269,17 +422,94 @@ if (!$isAdmin && $usuarioID) {
                     <option value="outro" <?= $tipo === 'outro' ? 'selected' : ''; ?>>📝 Outro</option>
                   </select>
                 </div>
+
+                <?php
+                $formNota = '';
+                if ($avaliacaoEstrelas !== null && $avaliacaoEstrelas !== '' && is_numeric($avaliacaoEstrelas)) {
+                  $v = max(1, min(5, (float) $avaliacaoEstrelas));
+                  $v = round($v * 2) / 2;
+                  $formNota = str_replace('.', ',', (string) $v);
+                }
+                ?>
+                <div class="mb-4 avaliacao-estrelas-wrap">
+                  <label class="form-label">Sua nota (1 a 5) <span class="text-danger">*</span></label>
+                  <div class="avaliacao-nota-linha">
+                    <div class="estrelas" id="estrelas" role="group" aria-label="Estrelas 1 a 5">
+                      <?php for ($i = 0; $i < 5; $i++): ?>
+                        <button type="button" class="estrela" data-index="<?= $i ?>" aria-label="Estrela <?= $i + 1 ?>"><i class="bi bi-star"></i></button>
+                      <?php endfor; ?>
+                    </div>
+                    <span id="nota-exibida" class="nota-exibida"><?= htmlspecialchars($formNota) ?></span>
+                  </div>
+                  <input type="hidden" name="avaliacao_estrelas" id="avaliacao_estrelas" value="<?= htmlspecialchars($formNota) ?>" required>
+                </div>
+
+                <div class="feedback-questionario mb-4">
+                  <label class="form-label">Perguntas sobre o uso (opcional)</label>
+                  <p class="form-text text-muted mb-3">Escala de 1 a 5.</p>
+                  <div class="questionario-lista">
+                    <div class="pergunta-item">
+                      <span class="pergunta-texto">O sistema é fácil de usar?</span>
+                      <div class="escala-1-5" role="group" aria-label="O sistema é fácil de usar?">
+                        <?php for ($v = 1; $v <= 5; $v++): ?>
+                          <label class="escala-opcao"><input type="radio" name="usabilidade_facilidade" value="<?= $v ?>" <?= ($usabFacilidade === $v) ? 'checked' : '' ?>> <span><?= $v ?></span></label>
+                        <?php endfor; ?>
+                      </div>
+                    </div>
+                    <div class="pergunta-item">
+                      <span class="pergunta-texto">As informações estão organizadas de forma clara?</span>
+                      <div class="escala-1-5" role="group" aria-label="As informações estão organizadas de forma clara?">
+                        <?php for ($v = 1; $v <= 5; $v++): ?>
+                          <label class="escala-opcao"><input type="radio" name="usabilidade_organizacao" value="<?= $v ?>" <?= ($usabOrganizacao === $v) ? 'checked' : '' ?>> <span><?= $v ?></span></label>
+                        <?php endfor; ?>
+                      </div>
+                    </div>
+                    <div class="pergunta-item">
+                      <span class="pergunta-texto">O processo de registro é simples?</span>
+                      <div class="escala-1-5" role="group" aria-label="O processo de registro é simples?">
+                        <?php for ($v = 1; $v <= 5; $v++): ?>
+                          <label class="escala-opcao"><input type="radio" name="usabilidade_registro" value="<?= $v ?>" <?= ($usabRegistro === $v) ? 'checked' : '' ?>> <span><?= $v ?></span></label>
+                        <?php endfor; ?>
+                      </div>
+                    </div>
+                    <div class="pergunta-item">
+                      <span class="pergunta-texto">O relatório facilita a análise das ocorrências?</span>
+                      <div class="escala-1-5" role="group" aria-label="O relatório facilita a análise das ocorrências?">
+                        <?php for ($v = 1; $v <= 5; $v++): ?>
+                          <label class="escala-opcao"><input type="radio" name="usabilidade_relatorio" value="<?= $v ?>" <?= ($usabRelatorio === $v) ? 'checked' : '' ?>> <span><?= $v ?></span></label>
+                        <?php endfor; ?>
+                      </div>
+                    </div>
+                    <div class="pergunta-item">
+                      <span class="pergunta-texto">O sistema auxilia na tomada de decisão?</span>
+                      <div class="escala-1-5" role="group" aria-label="O sistema auxilia na tomada de decisão?">
+                        <?php for ($v = 1; $v <= 5; $v++): ?>
+                          <label class="escala-opcao"><input type="radio" name="usabilidade_decisao" value="<?= $v ?>" <?= ($usabDecisao === $v) ? 'checked' : '' ?>> <span><?= $v ?></span></label>
+                        <?php endfor; ?>
+                      </div>
+                    </div>
+                    <div class="pergunta-item">
+                      <span class="pergunta-texto">Você utilizaria essa ferramenta em situação real?</span>
+                      <div class="escala-1-5" role="group" aria-label="Você utilizaria essa ferramenta em situação real?">
+                        <?php for ($v = 1; $v <= 5; $v++): ?>
+                          <label class="escala-opcao"><input type="radio" name="usabilidade_usaria" value="<?= $v ?>" <?= ($usabUsaria === $v) ? 'checked' : '' ?>> <span><?= $v ?></span></label>
+                        <?php endfor; ?>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div class="mb-4">
                   <label for="mensagem" class="form-label"><i class="bi bi-chat-left-text"></i> Mensagem <span class="text-danger">*</span></label>
-                  <textarea class="form-control" id="mensagem" name="mensagem" rows="8"
-                    placeholder="Descreva seu feedback de forma detalhada. Quanto mais informações, melhor poderemos ajudá-lo!"
+                  <textarea class="form-control" id="mensagem" name="mensagem" rows="6"
+                    placeholder="Escreva aqui o que quiser."
                     required minlength="10"><?= htmlspecialchars($mensagem); ?></textarea>
-                  <small class="form-text text-muted">Mínimo de 10 caracteres</small>
+                  <small class="form-text text-muted">Mín. 10 caracteres</small>
                   <div class="char-count"><span id="charCount"><?= strlen($mensagem) ?></span> / 2000 caracteres</div>
                 </div>
                 <div class="d-flex gap-2 justify-content-end">
-                  <a href="dashboard.php" class="btn btn-secondary"><i class="bi bi-x-circle"></i> Cancelar</a>
-                  <button type="submit" name="enviar_feedback" class="btn btn-primary"><i class="bi bi-send"></i> Enviar Feedback</button>
+                  <a href="dashboard.php" class="btn btn-secondary">Cancelar</a>
+                  <button type="submit" name="enviar_feedback" class="btn btn-primary">Enviar</button>
                 </div>
               </form>
             </div>
@@ -287,18 +517,13 @@ if (!$isAdmin && $usuarioID) {
             <div class="feedback-info">
               <div class="info-card">
                 <i class="bi bi-info-circle"></i>
-                <h5>Como funciona?</h5>
-                <p>Seu feedback será analisado pela equipe de desenvolvimento. Dependendo do tipo, podemos entrar em contato através do seu email cadastrado.</p>
-              </div>
-              <div class="info-card">
-                <i class="bi bi-clock-history"></i>
-                <h5>Tempo de Resposta</h5>
-                <p>Nossa equipe revisa os feedbacks regularmente. Feedback sobre problemas críticos são priorizados.</p>
+                <h5>O que acontece?</h5>
+                <p>O feedback é guardado e pode ser usado para melhorar o sistema. Se precisar, entramos em contato pelo seu email.</p>
               </div>
               <div class="info-card">
                 <i class="bi bi-shield-check"></i>
-                <h5>Privacidade</h5>
-                <p>Seus dados são mantidos em segurança e usados apenas para melhorar o sistema e responder seu feedback.</p>
+                <h5>Seus dados</h5>
+                <p>Só usamos para melhorar o SMCPA e, se for o caso, responder você.</p>
               </div>
             </div>
           </div>
@@ -311,11 +536,79 @@ if (!$isAdmin && $usuarioID) {
   <script src="/SMCPA/js/menu.js"></script>
   <?php if (!$isAdmin): ?>
     <script>
-      const mensagemEl = document.getElementById('mensagem');
-      const charCountEl = document.getElementById('charCount');
+      (function() {
+        var estrelasEl = document.getElementById('estrelas');
+        var inputNota = document.getElementById('avaliacao_estrelas');
+        var notaExibida = document.getElementById('nota-exibida');
+        if (!estrelasEl || !inputNota) return;
+        var botoes = estrelasEl.querySelectorAll('.estrela');
+
+        function normalizarNota(v) {
+          v = parseFloat(v, 10);
+          if (isNaN(v) || v < 1) return 0;
+          if (v > 5) return 5;
+          return Math.round(v * 2) / 2;
+        }
+
+        function atualizarIcones(v) {
+          v = normalizarNota(v);
+          if (v === 0) {
+            botoes.forEach(function(btn, i) {
+              var icon = btn.querySelector('i');
+              if (icon) icon.className = 'bi bi-star';
+              btn.classList.remove('ativa');
+            });
+            return;
+          }
+          var cheias = Math.floor(v);
+          var meia = (v - cheias) >= 0.5 ? 1 : 0;
+          botoes.forEach(function(btn, i) {
+            var icon = btn.querySelector('i');
+            if (!icon) return;
+            if (i < cheias) {
+              icon.className = 'bi bi-star-fill';
+              btn.classList.add('ativa');
+            } else if (meia && i === cheias) {
+              icon.className = 'bi bi-star-half';
+              btn.classList.add('ativa');
+            } else {
+              icon.className = 'bi bi-star';
+              btn.classList.remove('ativa');
+            }
+          });
+        }
+
+        function setarNota(val) {
+          var v = normalizarNota(val);
+          if (v < 1) v = 0;
+          var texto = v > 0 ? (v % 1 === 0 ? String(v) : String(v).replace('.', ',')) : '';
+          inputNota.value = texto;
+          if (notaExibida) notaExibida.textContent = texto;
+          atualizarIcones(v > 0 ? v : 0);
+        }
+
+        botoes.forEach(function(btn, i) {
+          btn.addEventListener('click', function(ev) {
+            var rect = btn.getBoundingClientRect();
+            var x = ev.clientX - rect.left;
+            var valor = x < rect.width / 2 ? (i + 0.5) : (i + 1);
+            valor = Math.max(1, Math.min(5, valor));
+            valor = Math.round(valor * 2) / 2;
+            setarNota(valor);
+          });
+        });
+
+        var inicial = normalizarNota(inputNota.value);
+        if (inicial >= 1 && inicial <= 5) {
+          atualizarIcones(inicial);
+          if (notaExibida) notaExibida.textContent = inicial % 1 === 0 ? String(inicial) : String(inicial).replace('.', ',');
+        }
+      })();
+      var mensagemEl = document.getElementById('mensagem');
+      var charCountEl = document.getElementById('charCount');
       if (mensagemEl && charCountEl) {
         mensagemEl.addEventListener('input', function() {
-          let len = this.value.length;
+          var len = this.value.length;
           if (len > 2000) {
             this.value = this.value.substring(0, 2000);
             len = 2000;
@@ -326,10 +619,22 @@ if (!$isAdmin && $usuarioID) {
       }
       <?php if ($mensagemSucesso): ?>
         setTimeout(function() {
-          const f = document.getElementById('formFeedback');
+          var f = document.getElementById('formFeedback');
           if (f) {
             f.reset();
-            document.getElementById('charCount').textContent = '0';
+            if (document.getElementById('charCount')) document.getElementById('charCount').textContent = '0';
+            var inp = document.getElementById('avaliacao_estrelas');
+            if (inp) inp.value = '';
+            var notaExibida = document.getElementById('nota-exibida');
+            if (notaExibida) notaExibida.textContent = '';
+            var es = document.getElementById('estrelas');
+            if (es) {
+              es.querySelectorAll('.estrela').forEach(function(btn) {
+                btn.classList.remove('ativa');
+                var icon = btn.querySelector('i');
+                if (icon) icon.className = 'bi bi-star';
+              });
+            }
           }
         }, 100);
       <?php endif; ?>

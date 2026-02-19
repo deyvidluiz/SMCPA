@@ -130,7 +130,7 @@ if (!$isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['enviar_f
       }
     } catch (PDOException $e) {
       error_log("Feedback: " . $e->getMessage());
-      $mensagemErro = 'Erro ao enviar feedback. Verifique se executou o script database/alter_feedback_usabilidade.sql no banco.';
+      $mensagemErro = 'Erro ao enviar feedback. Verifique se o banco foi criado com database/bancodedados.sql ou execute database/migrate_feedback_legado.sql em bancos antigos.';
     }
   }
 }

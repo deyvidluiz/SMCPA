@@ -299,6 +299,60 @@ body {
 .card-recomendacoes { border-left: 4px solid #16a34a; }
 .card-relatorios { border-left: 4px solid #7c3aed; }
 .card-surtos { border-left: 4px solid #ca8a04; }
+
+/* Bloco Surtos - Admin */
+.surtos-block .surtos-filtros {
+  background: rgba(202, 138, 4, 0.08);
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(202, 138, 4, 0.25);
+}
+.surtos-filtro-grupo {
+  display: flex;
+  flex-direction: column;
+}
+.surtos-filtro-label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #92400e;
+  margin-bottom: 4px;
+  min-height: 1.25rem;
+  line-height: 1.25;
+}
+.surtos-filtro-grupo .form-control,
+.surtos-filtro-grupo .form-select {
+  flex: 1;
+  min-height: 31px;
+}
+.surtos-info-box {
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border-left: 4px solid #ca8a04;
+  padding: 12px 14px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+}
+.list-group-item-surtos {
+  transition: background 0.2s;
+}
+.list-group-item-surtos:hover {
+  background: #fffbeb !important;
+}
+.surtos-block .surto-nome {
+  font-size: 0.95rem;
+  color: #92400e;
+}
+.list-group-surtos::-webkit-scrollbar {
+  width: 6px;
+}
+.list-group-surtos::-webkit-scrollbar-track {
+  background: #fef3c7;
+  border-radius: 3px;
+}
+.list-group-surtos::-webkit-scrollbar-thumb {
+  background: #ca8a04;
+  border-radius: 3px;
+}
 .card-grafico { border-left: 4px solid #0891b2; }
 
 .dashboard-item.small-item,

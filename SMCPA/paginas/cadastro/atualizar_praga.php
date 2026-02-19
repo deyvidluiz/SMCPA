@@ -4,12 +4,12 @@ require_once('../../config.php');
 include_once(BASE_URL.'/database/conexao.php');
 
 // Verificar se o usuário está logado
-if (!isset($_SESSION['id'])) {
+if (!isset($_SESSION['id']) && !isset($_SESSION['usuario_id'])) {
     header("Location: ../login/login.php");
     exit;
 }
 
-$usuarioID = $_SESSION['id'];
+$usuarioID = $_SESSION['id'] ?? $_SESSION['usuario_id'] ?? null;
 $pragaID = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
 if ($pragaID <= 0) {
@@ -20,16 +20,36 @@ if ($pragaID <= 0) {
 $pdo = new Database();
 $pdo = $pdo->conexao();
 
-// Buscar dados da praga original (cada usuário só pode atualizar suas próprias pragas)
+// Verificar se é administrador (admins podem atualizar qualquer praga)
+$isAdmin = false;
+if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] == 1) {
+    $isAdmin = true;
+} else {
+    try {
+        $stmtAdmin = $pdo->prepare("SELECT is_admin FROM Usuarios WHERE id = :id");
+        $stmtAdmin->bindParam(':id', $usuarioID, PDO::PARAM_INT);
+        $stmtAdmin->execute();
+        $row = $stmtAdmin->fetch(PDO::FETCH_ASSOC);
+        $isAdmin = ($row && isset($row['is_admin']) && $row['is_admin'] == 1);
+    } catch (PDOException $e) {}
+}
+
+// Buscar dados da praga (admin pode atualizar qualquer praga; usuário comum só as suas)
 try {
-    $stmt = $pdo->prepare("SELECT * FROM Pragas_Surtos WHERE ID = :id AND ID_Usuario = :usuarioID");
-    $stmt->bindParam(':id', $pragaID, PDO::PARAM_INT);
-    $stmt->bindParam(':usuarioID', $usuarioID, PDO::PARAM_INT);
+    if ($isAdmin) {
+        $stmt = $pdo->prepare("SELECT * FROM Pragas_Surtos WHERE ID = :id");
+        $stmt->bindParam(':id', $pragaID, PDO::PARAM_INT);
+    } else {
+        $stmt = $pdo->prepare("SELECT * FROM Pragas_Surtos WHERE ID = :id AND ID_Usuario = :usuarioID");
+        $stmt->bindParam(':id', $pragaID, PDO::PARAM_INT);
+        $stmt->bindParam(':usuarioID', $usuarioID, PDO::PARAM_INT);
+    }
     $stmt->execute();
     $pragaOriginal = $stmt->fetch(PDO::FETCH_ASSOC);
-    
+
     if (!$pragaOriginal) {
-        header("Location: cadpraga.php?erro=praga_nao_encontrada");
+        $redirectUrl = $isAdmin ? "../dashboard/dashboardadm.php" : "cadpraga.php";
+        header("Location: " . $redirectUrl . "?erro=praga_nao_encontrada");
         exit;
     }
 } catch (PDOException $e) {

@@ -218,34 +218,23 @@ if (isset($_POST['cadastrar_admin']) && $isAdmin) {
   }
 }
 
-// ================== DASHBOARD DE PRAGAS (FUNCIONALIDADES DO USUÁRIO) ==================
-// Buscar todas as pragas cadastradas pelo usuário logado (mostrar apenas as pragas deste usuário)
+// ================== DASHBOARD DE PRAGAS ==================
+// Admin: buscar TODAS as pragas do sistema (incluindo as de outros usuários)
+// Para relatórios e gráficos que usam $pragaSelecionada, o admin pode escolher qualquer praga
 $todasPragas = [];
+$totalPragasCadastradas = 0;
 try {
-  $stmtPragas = $pdo->prepare("SELECT ID, Nome, Planta_Hospedeira, Localidade, Data_Aparicao, ID_Usuario 
+  $stmtPragas = $pdo->query("SELECT ID, Nome, Planta_Hospedeira, Localidade, Data_Aparicao, ID_Usuario 
                  FROM Pragas_Surtos 
-                 WHERE ID_Usuario = :usuarioID
                  ORDER BY Data_Aparicao DESC");
-  $stmtPragas->bindParam(':usuarioID', $usuarioID, PDO::PARAM_INT);
-  $stmtPragas->execute();
   $todasPragas = $stmtPragas->fetchAll(PDO::FETCH_ASSOC);
+  $totalPragasCadastradas = count($todasPragas);
 } catch (PDOException $e) {
   $todasPragas = [];
 }
 
-// Buscar apenas as pragas cadastradas pelo admin logado (para gerar relatórios)
-$pragasAdmin = [];
-try {
-  $stmtPragasAdmin = $pdo->prepare("SELECT ID, Nome, Planta_Hospedeira, Localidade, Data_Aparicao, ID_Usuario 
-                                      FROM Pragas_Surtos 
-                                      WHERE ID_Usuario = :usuarioID 
-                                      ORDER BY Data_Aparicao DESC");
-  $stmtPragasAdmin->bindParam(':usuarioID', $usuarioID, PDO::PARAM_INT);
-  $stmtPragasAdmin->execute();
-  $pragasAdmin = $stmtPragasAdmin->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-  $pragasAdmin = [];
-}
+// Manter $pragasAdmin para compatibilidade com código que possa usar (mesmo que todas as pragas para admin)
+$pragasAdmin = $todasPragas;
 
 // Buscar localidade do usuário (pega da primeira praga ou usa padrão)
 $localidadeUsuario = 'Região não especificada';
@@ -270,7 +259,7 @@ function extrairPalavrasChave($nome)
 }
 
 // Praga selecionada (se houver)
-$pragaSelecionadaID = $_GET['praga_id'] ?? ($todasPragas[0]['ID'] ?? null);
+$pragaSelecionadaID = isset($_GET['praga_id']) ? $_GET['praga_id'] : ($todasPragas[0]['ID'] ?? null);
 $pragaSelecionada = null;
 
 if ($pragaSelecionadaID) {
@@ -279,6 +268,67 @@ if ($pragaSelecionadaID) {
       $pragaSelecionada = $praga;
       break;
     }
+  }
+}
+
+// Função: buscar surtos (admin vê TODOS do sistema, sem filtro de região)
+// $pragaID: null = todas as pragas, ou ID de um registro (filtra por Nome similar)
+// $dataInicio, $dataFim: intervalo em Y-m-d (default: últimos 30 dias)
+function buscarSurtosAdmin($pdo, $pragaID = null, $dataInicio = null, $dataFim = null) {
+  $dataFim = $dataFim ?? date('Y-m-d');
+  $dataInicio = $dataInicio ?? date('Y-m-d', strtotime('-30 days'));
+  try {
+    $params = [':dataInicio' => $dataInicio, ':dataFim' => $dataFim];
+    $condicaoData = "(ps.Data_Aparicao IS NULL OR (ps.Data_Aparicao >= :dataInicio AND ps.Data_Aparicao <= :dataFim))";
+
+    if ($pragaID) {
+      $stmtNome = $pdo->prepare("SELECT Nome FROM Pragas_Surtos WHERE ID = :id");
+      $stmtNome->bindParam(':id', $pragaID, PDO::PARAM_INT);
+      $stmtNome->execute();
+      $row = $stmtNome->fetch(PDO::FETCH_ASSOC);
+      if (!$row) return [];
+      $nomePraga = trim($row['Nome']);
+      $palavrasChave = extrairPalavrasChave($nomePraga);
+      $condicoes = ["LOWER(TRIM(ps.Nome)) = LOWER(TRIM(:nomeExato))"];
+      $params[':nomeExato'] = $nomePraga;
+      foreach ($palavrasChave as $i => $pc) {
+        $key = ':pc' . $i;
+        $condicoes[] = "LOWER(ps.Nome) LIKE " . $key;
+        $params[$key] = '%' . $pc . '%';
+      }
+      $sql = "SELECT ps.ID, ps.Nome, ps.Planta_Hospedeira, ps.Localidade, ps.Data_Aparicao, ps.ID_Usuario,
+                     u.usuario AS nome_usuario
+              FROM Pragas_Surtos ps
+              LEFT JOIN Usuarios u ON ps.ID_Usuario = u.id
+              WHERE (" . implode(' OR ', $condicoes) . ") AND " . $condicaoData . "
+              ORDER BY ps.Data_Aparicao DESC, ps.ID DESC";
+    } else {
+      $sql = "SELECT ps.ID, ps.Nome, ps.Planta_Hospedeira, ps.Localidade, ps.Data_Aparicao, ps.ID_Usuario,
+                     u.usuario AS nome_usuario
+              FROM Pragas_Surtos ps
+              LEFT JOIN Usuarios u ON ps.ID_Usuario = u.id
+              WHERE " . $condicaoData . "
+              ORDER BY ps.Data_Aparicao DESC, ps.ID DESC";
+    }
+    $stmt = $pdo->prepare($sql);
+    foreach ($params as $k => $v) $stmt->bindValue($k, $v);
+    $stmt->execute();
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+  } catch (PDOException $e) {
+    error_log('buscarSurtosAdmin: ' . $e->getMessage());
+    return [];
+  }
+}
+
+// Carregar surtos no carregamento inicial (admin vê todos por padrão, últimos 30 dias)
+$dataInicioSurtos = $_GET['data_inicio'] ?? date('Y-m-d', strtotime('-30 days'));
+$dataFimSurtos = $_GET['data_fim'] ?? date('Y-m-d');
+$pragaIDSurtosInicial = $_GET['praga_surtos'] ?? ''; // Filtro do bloco surtos (independente da praga do gráfico)
+$surtosLista = buscarSurtosAdmin($pdo, $pragaIDSurtosInicial ?: null, $dataInicioSurtos, $dataFimSurtos);
+$nomePragaSurtos = 'Todas as pragas';
+if ($pragaIDSurtosInicial) {
+  foreach ($todasPragas as $pp) {
+    if ($pp['ID'] == $pragaIDSurtosInicial) { $nomePragaSurtos = $pp['Nome']; break; }
   }
 }
 
@@ -440,74 +490,47 @@ $recomendacoes = $pragaSelecionada ? gerarRecomendacoes($pragaSelecionada['Nome'
 $acao = $_GET['acao'] ?? '';
 
 // Se for requisição AJAX, retornar apenas o conteúdo necessário
-if ($acao === 'surtos' && $pragaSelecionada) {
-  // Buscar surtos para esta praga
-  $surtos30Dias = [];
-  try {
-    $dataLimite = date('Y-m-d', strtotime('-30 days'));
-
-    // Extrair palavras-chave do nome da praga
-    $palavrasChave = extrairPalavrasChave($pragaSelecionada['Nome']);
-    $nomePragaExato = trim($pragaSelecionada['Nome']);
-    $nomePragaLike = '%' . $nomePragaExato . '%';
-
-    // Preparar condições de busca de pragas similares
-    $condicoesPraga = [];
-    $params = [];
-
-    $condicoesPraga[] = "LOWER(TRIM(Nome)) = LOWER(TRIM(:nomePraga))";
-    $params[':nomePraga'] = $nomePragaExato;
-
-    $condicoesPraga[] = "LOWER(Nome) LIKE LOWER(:nomePragaLike)";
-    $params[':nomePragaLike'] = $nomePragaLike;
-
-    foreach ($palavrasChave as $index => $palavra) {
-      $paramName = ':palavraChave' . $index;
-      $condicoesPraga[] = "LOWER(Nome) LIKE " . $paramName;
-      $params[$paramName] = '%' . $palavra . '%';
-    }
-
-    $sqlCondicaoPraga = "(" . implode(" OR ", $condicoesPraga) . ")";
-
-    $sql = "SELECT DATE(Data_Aparicao) as data_surto, COUNT(*) as total 
-                FROM Pragas_Surtos 
-                WHERE " . $sqlCondicaoPraga . "
-                AND Data_Aparicao >= :dataLimite
-                GROUP BY DATE(Data_Aparicao)
-                ORDER BY Data_Aparicao ASC";
-
-    $stmtSurtos = $pdo->prepare($sql);
-
-    foreach ($params as $paramName => $valor) {
-      $stmtSurtos->bindValue($paramName, $valor, PDO::PARAM_STR);
-    }
-
-    $stmtSurtos->bindValue(':dataLimite', $dataLimite, PDO::PARAM_STR);
-    $stmtSurtos->execute();
-    $surtos30Dias = $stmtSurtos->fetchAll(PDO::FETCH_ASSOC);
-  } catch (PDOException $e) {
-    $surtos30Dias = [];
-  }
-
-  if (!empty($surtos30Dias)): ?>
-    <div class="info-box">
-      <p class="mb-1"><strong>Praga:</strong> <?= htmlspecialchars($pragaSelecionada['Nome']); ?></p>
-      <p class="mb-2"><strong>Região:</strong> Todas as regiões</p>
-      <p class="mb-0"><small class="text-muted"><i class="bi bi-info-circle"></i> Incluindo surtos de pragas similares</small></p>
+if ($acao === 'surtos') {
+  $pragaIDSurtos = isset($_GET['praga_id']) ? $_GET['praga_id'] : null;
+  $dataInicioAjax = $_GET['data_inicio'] ?? date('Y-m-d', strtotime('-30 days'));
+  $dataFimAjax = $_GET['data_fim'] ?? date('Y-m-d');
+  $surtosAjax = buscarSurtosAdmin($pdo, $pragaIDSurtos ?: null, $dataInicioAjax, $dataFimAjax);
+  $pragaNomeAjax = ($pragaIDSurtos && $pragaSelecionada) ? htmlspecialchars($pragaSelecionada['Nome']) : 'Todas as pragas';
+  $dataInicioFmt = date('d/m/Y', strtotime($dataInicioAjax));
+  $dataFimFmt = date('d/m/Y', strtotime($dataFimAjax));
+  if (!empty($surtosAjax)): ?>
+    <div class="surtos-info-box">
+      <p class="mb-1"><strong><i class="bi bi-bug-fill text-warning"></i> Praga:</strong> <?= $pragaNomeAjax; ?></p>
+      <p class="mb-1"><strong><i class="bi bi-calendar-range"></i> Período:</strong> <?= $dataInicioFmt; ?> a <?= $dataFimFmt; ?></p>
+      <p class="mb-0"><strong><i class="bi bi-pin-map"></i> Região:</strong> Todas</p>
     </div>
-    <div class="list-group" style="max-height: 180px; overflow-y: auto;">
-      <?php foreach ($surtos30Dias as $surtos): ?>
-        <div class="list-group-item">
-          <div class="d-flex justify-content-between">
-            <span><i class="bi bi-calendar"></i> <?= date('d/m/Y', strtotime($surtos['data_surto'])); ?></span>
-            <span class="badge bg-warning text-dark"><?= $surtos['total']; ?> surto(s)</span>
+    <div class="list-group list-group-surtos" style="max-height: 220px; overflow-y: auto;">
+      <?php foreach ($surtosAjax as $s): ?>
+        <div class="list-group-item list-group-item-surtos">
+          <div class="d-flex justify-content-between align-items-start flex-wrap gap-1">
+            <div class="flex-grow-1">
+              <h6 class="mb-1 surto-nome"><?= htmlspecialchars($s['Nome']); ?></h6>
+              <p class="mb-0 small text-muted"><i class="bi bi-flower1"></i> <?= htmlspecialchars($s['Planta_Hospedeira']); ?></p>
+              <p class="mb-0 small text-muted"><i class="bi bi-geo-alt"></i> <?= htmlspecialchars($s['Localidade'] ?? '-'); ?></p>
+              <?php if (!empty($s['nome_usuario'])): ?>
+                <p class="mb-0 small text-muted"><i class="bi bi-person"></i> <?= htmlspecialchars($s['nome_usuario']); ?></p>
+              <?php endif; ?>
+            </div>
+            <div class="d-flex flex-column align-items-end gap-1">
+              <small class="text-muted"><?= $s['Data_Aparicao'] ? date('d/m/Y', strtotime($s['Data_Aparicao'])) : '-'; ?></small>
+              <a href="gerar_relatorio.php?id=<?= $s['ID']; ?>" class="btn btn-sm btn-outline-warning" target="_blank" title="Ver relatório">
+                <i class="bi bi-file-earmark-pdf"></i> Relatório
+              </a>
+            </div>
           </div>
         </div>
       <?php endforeach; ?>
     </div>
-    <p class="mt-2 mb-0"><small class="text-muted">Total: <?= count($surtos30Dias); ?> dias com surtos</small></p>
+    <p class="mt-2 mb-0 small text-muted"><i class="bi bi-info-circle"></i> Total: <?= count($surtosAjax); ?> surto(s) no período</p>
   <?php else: ?>
-    <p class="text-muted">Nenhum surto registrado nos últimos 30 dias para esta praga.</p>
+    <div class="alert alert-light border">
+      <i class="bi bi-info-circle text-muted"></i> Nenhum surto no período <?= $dataInicioFmt; ?> a <?= $dataFimFmt; ?>.
+    </div>
   <?php endif;
   exit;
 }
@@ -583,7 +606,7 @@ if ($acao === 'recomendacoes' && $pragaSelecionada) {
         <div class="dashboard-grid">
           <!-- Bloco Pragas -->
           <div class="dashboard-item card-pragas blue-item" id="vendas-hoje" style="overflow-y: auto;">
-            <h5 class="mb-3"><i class="bi bi-bug-fill text-primary"></i> Todas as Pragas Registradas</h5>
+            <h5 class="mb-3"><i class="bi bi-bug-fill text-primary"></i> Total de pragas cadastradas (<?= $totalPragasCadastradas; ?>)</h5>
             <?php if (!empty($todasPragas)): ?>
               <div class="list-group" style="max-height: 250px; overflow-y: auto;">
                 <?php foreach ($todasPragas as $praga): ?>
@@ -613,49 +636,73 @@ if ($acao === 'recomendacoes' && $pragaSelecionada) {
           </div>
 
           <!-- Bloco Surtos -->
-          <div class="dashboard-item card-surtos orange-item" id="vendas-periodicas" style="overflow-y: auto;">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-              <h5 class="mb-0"><i class="bi bi-exclamation-triangle-fill text-warning"></i> Surtos (Últimos 30 dias)</h5>
-              <div class="d-flex gap-2 align-items-center">
-                <?php if (!empty($todasPragas)): ?>
-                  <select class="form-select select-praga" id="select-surtos" style="width: auto; min-width: 180px; font-size: 0.85rem;" onchange="atualizarSurtos(this.value)">
-                    <option value="">Todas as pragas</option>
-                    <?php foreach ($todasPragas as $praga): ?>
-                      <option value="<?= $praga['ID']; ?>" <?= ($pragaSelecionadaID == $praga['ID']) ? 'selected' : ''; ?>>
-                        <?= htmlspecialchars($praga['Nome']); ?>
+          <div class="dashboard-item card-surtos orange-item surtos-block" id="bloco-surtos">
+            <h5 class="mb-3"><i class="bi bi-exclamation-triangle-fill text-warning"></i> Surtos do Sistema</h5>
+            <div class="surtos-filtros mb-3">
+              <div class="row g-2 mb-2 align-items-end">
+                <div class="col-12 col-md-6 surtos-filtro-grupo">
+                  <label class="form-label surtos-filtro-label" for="select-surtos">Praga</label>
+                  <select class="form-select form-select-sm" id="select-surtos" onchange="aplicarFiltroSurtos()">
+                    <option value="" <?= !$pragaIDSurtosInicial ? 'selected' : ''; ?>>Todas as pragas</option>
+                    <?php foreach ($todasPragas as $p): ?>
+                      <option value="<?= $p['ID']; ?>" <?= ($pragaIDSurtosInicial == $p['ID']) ? 'selected' : ''; ?>>
+                        <?= htmlspecialchars($p['Nome']); ?>
                       </option>
                     <?php endforeach; ?>
                   </select>
-                <?php endif; ?>
-                <a href="../cadastro/cadsurto.php" class="btn btn-sm btn-light" title="Cadastrar novo surto">
+                </div>
+                <div class="col-6 col-md-3 surtos-filtro-grupo">
+                  <label class="form-label surtos-filtro-label" for="surtos-data-inicio">Data início</label>
+                  <input type="date" class="form-control form-control-sm" id="surtos-data-inicio" value="<?= htmlspecialchars($dataInicioSurtos); ?>">
+                </div>
+                <div class="col-6 col-md-3 surtos-filtro-grupo">
+                  <label class="form-label surtos-filtro-label" for="surtos-data-fim">Data fim</label>
+                  <input type="date" class="form-control form-control-sm" id="surtos-data-fim" value="<?= htmlspecialchars($dataFimSurtos); ?>">
+                </div>
+              </div>
+              <div class="d-flex flex-wrap gap-2 align-items-center">
+                <button type="button" class="btn btn-sm btn-warning" onclick="aplicarFiltroSurtos()">
+                  <i class="bi bi-funnel"></i> Filtrar
+                </button>
+                <a href="../cadastro/cadsurto.php" class="btn btn-sm btn-outline-secondary" title="Cadastrar novo surto">
                   <i class="bi bi-plus-circle"></i> Novo Surto
                 </a>
               </div>
             </div>
             <div id="conteudo-surtos">
-              <?php if ($pragaSelecionada && !empty($surtos30Dias)): ?>
-                <div class="info-box">
-                  <p class="mb-1"><strong>Praga:</strong> <?= htmlspecialchars($pragaSelecionada['Nome']); ?></p>
-                  <p class="mb-2"><strong>Região:</strong> Todas as regiões</p>
-                  <p class="mb-0"><small class="text-muted"><i class="bi bi-info-circle"></i> Incluindo surtos de pragas similares</small></p>
+              <?php if (!empty($surtosLista)): ?>
+                <div class="surtos-info-box">
+                  <p class="mb-1"><strong><i class="bi bi-bug-fill text-warning"></i> Praga:</strong> <?= htmlspecialchars($nomePragaSurtos); ?></p>
+                  <p class="mb-1"><strong><i class="bi bi-calendar-range"></i> Período:</strong> <?= date('d/m/Y', strtotime($dataInicioSurtos)); ?> a <?= date('d/m/Y', strtotime($dataFimSurtos)); ?></p>
+                  <p class="mb-0"><strong><i class="bi bi-pin-map"></i> Região:</strong> Todas</p>
                 </div>
-                <div class="list-group" style="max-height: 180px; overflow-y: auto;">
-                  <?php foreach ($surtos30Dias as $surtos): ?>
-                    <div class="list-group-item">
-                      <div class="d-flex justify-content-between">
-                        <span><i class="bi bi-calendar"></i> <?= date('d/m/Y', strtotime($surtos['data_surto'])); ?></span>
-                        <span class="badge bg-warning text-dark"><?= $surtos['total']; ?> surto(s)</span>
+                <div class="list-group list-group-surtos" style="max-height: 220px; overflow-y: auto;">
+                  <?php foreach ($surtosLista as $s): ?>
+                    <div class="list-group-item list-group-item-surtos">
+                      <div class="d-flex justify-content-between align-items-start flex-wrap gap-1">
+                        <div class="flex-grow-1">
+                          <h6 class="mb-1 surto-nome"><?= htmlspecialchars($s['Nome']); ?></h6>
+                          <p class="mb-0 small text-muted"><i class="bi bi-flower1"></i> <?= htmlspecialchars($s['Planta_Hospedeira']); ?></p>
+                          <p class="mb-0 small text-muted"><i class="bi bi-geo-alt"></i> <?= htmlspecialchars($s['Localidade'] ?? '-'); ?></p>
+                          <?php if (!empty($s['nome_usuario'])): ?>
+                            <p class="mb-0 small text-muted"><i class="bi bi-person"></i> <?= htmlspecialchars($s['nome_usuario']); ?></p>
+                          <?php endif; ?>
+                        </div>
+                        <div class="d-flex flex-column align-items-end gap-1">
+                          <small class="text-muted"><?= $s['Data_Aparicao'] ? date('d/m/Y', strtotime($s['Data_Aparicao'])) : '-'; ?></small>
+                          <a href="gerar_relatorio.php?id=<?= $s['ID']; ?>" class="btn btn-sm btn-outline-warning" target="_blank" title="Ver relatório">
+                            <i class="bi bi-file-earmark-pdf"></i> Relatório
+                          </a>
+                        </div>
                       </div>
                     </div>
                   <?php endforeach; ?>
                 </div>
-                <p class="mt-2 mb-0"><small class="text-muted">Total: <?= count($surtos30Dias); ?> dias com surtos</small></p>
-              <?php elseif ($pragaSelecionada): ?>
-                <div class="alert alert-info">
-                  <i class="bi bi-info-circle"></i> Nenhum surto registrado nos últimos 30 dias para "<strong><?= htmlspecialchars($pragaSelecionada['Nome']); ?></strong>".
-                </div>
+                <p class="mt-2 mb-0 small text-muted"><i class="bi bi-info-circle"></i> Total: <?= count($surtosLista); ?> surto(s) no período</p>
               <?php else: ?>
-                <p class="text-muted">Selecione uma praga para ver os surtos.</p>
+                <div class="alert alert-light border">
+                  <i class="bi bi-info-circle text-muted"></i> Nenhum surto no período. Ajuste as datas ou selecione outra praga.
+                </div>
               <?php endif; ?>
             </div>
           </div>
@@ -721,7 +768,7 @@ if ($acao === 'recomendacoes' && $pragaSelecionada) {
                 </form>
                 <div class="mt-3">
                   <small class="text-muted">
-                    <i class="bi bi-info-circle"></i> Você pode gerar relatórios apenas das pragas que você cadastrou. Para visualizar relatórios de outras pragas, acesse <a href="filtros_pragas.php">Filtros de Pragas</a>.
+                    <i class="bi bi-info-circle"></i> Admin: relatórios de todas as pragas do sistema disponíveis.
                   </small>
                 </div>
               <?php else: ?>
@@ -836,23 +883,25 @@ if ($acao === 'recomendacoes' && $pragaSelecionada) {
     const todasPragas = <?= json_encode($todasPragas); ?>;
     const localidadeUsuario = <?= json_encode($localidadeUsuario); ?>;
 
-    // Função para atualizar surtos via AJAX
-    function atualizarSurtos(pragaID) {
-      if (!pragaID) {
-        document.getElementById('conteudo-surtos').innerHTML = '<p class="mt-3">Selecione uma praga para ver os surtos.</p>';
-        return;
-      }
+    // Função para filtrar surtos via AJAX (praga + intervalo de datas)
+    function aplicarFiltroSurtos() {
+      const pragaID = document.getElementById('select-surtos').value;
+      const dataInicio = document.getElementById('surtos-data-inicio').value;
+      const dataFim = document.getElementById('surtos-data-fim').value;
+      const conteudo = document.getElementById('conteudo-surtos');
 
-      const praga = todasPragas.find(p => p.ID == pragaID);
-      if (!praga) return;
+      conteudo.innerHTML = '<div class="text-center py-4"><div class="spinner-border spinner-border-sm text-warning" role="status"></div><p class="mt-2 small text-muted">Carregando surtos...</p></div>';
 
-      // Fazer requisição AJAX
-      fetch(`dashboardadm.php?praga_id=${pragaID}&acao=surtos`)
+      let url = `dashboardadm.php?acao=surtos&data_inicio=${encodeURIComponent(dataInicio)}&data_fim=${encodeURIComponent(dataFim)}`;
+      if (pragaID) url += `&praga_id=${encodeURIComponent(pragaID)}`;
+
+      fetch(url)
         .then(response => response.text())
-        .then(html => {
-          document.getElementById('conteudo-surtos').innerHTML = html;
-        })
-        .catch(error => console.error('Erro:', error));
+        .then(html => { conteudo.innerHTML = html; })
+        .catch(error => {
+          console.error('Erro:', error);
+          conteudo.innerHTML = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Erro ao carregar surtos. Tente novamente.</div>';
+        });
     }
 
     // Função para atualizar recomendações via AJAX

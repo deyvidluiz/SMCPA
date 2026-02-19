@@ -32,7 +32,9 @@ CREATE TABLE Administrador (
 
 -- =========================
 -- TABELA: Feedback
--- (Inclui: avaliação por estrelas, usabilidade, dados do autor quando excluído, FK ON DELETE SET NULL)
+-- Inclui todas as alterações: avaliação por estrelas (DECIMAL 1-5), questionário de usabilidade,
+-- dados do autor quando excluído (Autor_Nome, Autor_Email, etc.), Usuario NULL, FK ON DELETE SET NULL
+-- Para migração de bancos antigos, use: migrate_feedback_legado.sql
 -- =========================
 CREATE TABLE Feedback (
 	ID INT NOT NULL AUTO_INCREMENT,
@@ -234,7 +236,7 @@ CREATE TABLE recuperacao_senha (
 	ID_Usuario INT NOT NULL,
 	token VARCHAR(64) NOT NULL,
 	expira_em DATETIME NOT NULL,
-	usado TINYINT(1) DEFAULT 0,
+	usado TINYINT NOT NULL DEFAULT 0,
 	criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (ID),
 	UNIQUE KEY uk_token (token),
@@ -242,3 +244,5 @@ CREATE TABLE recuperacao_senha (
 	KEY idx_usado (usado),
 	FOREIGN KEY (ID_Usuario) REFERENCES Usuarios(ID) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+

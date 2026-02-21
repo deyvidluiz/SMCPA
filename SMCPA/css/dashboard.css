@@ -398,6 +398,21 @@ body {
   font-size: 0.9rem;
 }
 
+/* Balão de aviso nas recomendações (mesmo estilo dos blocos de informação) */
+.aviso-recomendacoes {
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border-left: 4px solid #ca8a04;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-size: 0.85rem;
+  color: #92400e;
+}
+.aviso-recomendacoes .bi {
+  color: #b45309;
+  margin-right: 6px;
+}
+
 .list-group-item {
   background: #f9fafb;
   border: 1px solid #e5e7eb;

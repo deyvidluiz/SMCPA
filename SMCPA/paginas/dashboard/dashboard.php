@@ -976,6 +976,10 @@ if ($acao === 'dados_grafico') {
                 </select>
               <?php endif; ?>
             </div>
+            <div class="aviso-recomendacoes" role="note">
+              <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+              As recomendações podem não ser precisas. O ideal é consultar um profissional da área.
+            </div>
             <div id="conteudo-recomendacoes">
               <?php if ($pragaSelecionada && !empty($recomendacoes)): ?>
                 <div class="info-box mb-2">

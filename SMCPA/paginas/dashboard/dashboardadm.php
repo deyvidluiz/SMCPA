@@ -271,15 +271,25 @@ if ($pragaSelecionadaID) {
   }
 }
 
-// Função: buscar surtos (admin vê TODOS do sistema, sem filtro de região)
-// $pragaID: null = todas as pragas, ou ID de um registro (filtra por Nome similar)
+// Regiões distintas do sistema (para filtro de surtos)
+$regioesSistema = [];
+try {
+  $stmtRegioes = $pdo->query("SELECT DISTINCT Localidade FROM Pragas_Surtos WHERE Localidade IS NOT NULL AND TRIM(Localidade) != '' ORDER BY Localidade ASC");
+  $regioesSistema = $stmtRegioes->fetchAll(PDO::FETCH_COLUMN);
+} catch (PDOException $e) {
+  $regioesSistema = [];
+}
+
+// Função: buscar surtos (admin vê TODOS do sistema)
+// $pragaID: null = todas as pragas; $regiao: null = todas as regiões
 // $dataInicio, $dataFim: intervalo em Y-m-d (default: últimos 30 dias)
-function buscarSurtosAdmin($pdo, $pragaID = null, $dataInicio = null, $dataFim = null) {
+function buscarSurtosAdmin($pdo, $pragaID = null, $dataInicio = null, $dataFim = null, $regiao = null) {
   $dataFim = $dataFim ?? date('Y-m-d');
   $dataInicio = $dataInicio ?? date('Y-m-d', strtotime('-30 days'));
   try {
     $params = [':dataInicio' => $dataInicio, ':dataFim' => $dataFim];
     $condicaoData = "(ps.Data_Aparicao IS NULL OR (ps.Data_Aparicao >= :dataInicio AND ps.Data_Aparicao <= :dataFim))";
+    $condicoesWhere = [$condicaoData];
 
     if ($pragaID) {
       $stmtNome = $pdo->prepare("SELECT Nome FROM Pragas_Surtos WHERE ID = :id");
@@ -289,27 +299,27 @@ function buscarSurtosAdmin($pdo, $pragaID = null, $dataInicio = null, $dataFim =
       if (!$row) return [];
       $nomePraga = trim($row['Nome']);
       $palavrasChave = extrairPalavrasChave($nomePraga);
-      $condicoes = ["LOWER(TRIM(ps.Nome)) = LOWER(TRIM(:nomeExato))"];
+      $condicoesPraga = ["LOWER(TRIM(ps.Nome)) = LOWER(TRIM(:nomeExato))"];
       $params[':nomeExato'] = $nomePraga;
       foreach ($palavrasChave as $i => $pc) {
         $key = ':pc' . $i;
-        $condicoes[] = "LOWER(ps.Nome) LIKE " . $key;
+        $condicoesPraga[] = "LOWER(ps.Nome) LIKE " . $key;
         $params[$key] = '%' . $pc . '%';
       }
-      $sql = "SELECT ps.ID, ps.Nome, ps.Planta_Hospedeira, ps.Localidade, ps.Data_Aparicao, ps.ID_Usuario,
-                     u.usuario AS nome_usuario
-              FROM Pragas_Surtos ps
-              LEFT JOIN Usuarios u ON ps.ID_Usuario = u.id
-              WHERE (" . implode(' OR ', $condicoes) . ") AND " . $condicaoData . "
-              ORDER BY ps.Data_Aparicao DESC, ps.ID DESC";
-    } else {
-      $sql = "SELECT ps.ID, ps.Nome, ps.Planta_Hospedeira, ps.Localidade, ps.Data_Aparicao, ps.ID_Usuario,
-                     u.usuario AS nome_usuario
-              FROM Pragas_Surtos ps
-              LEFT JOIN Usuarios u ON ps.ID_Usuario = u.id
-              WHERE " . $condicaoData . "
-              ORDER BY ps.Data_Aparicao DESC, ps.ID DESC";
+      $condicoesWhere[] = "(" . implode(' OR ', $condicoesPraga) . ")";
     }
+
+    if ($regiao !== null && $regiao !== '') {
+      $condicoesWhere[] = "(ps.Localidade IS NOT NULL AND LOWER(TRIM(ps.Localidade)) = LOWER(TRIM(:regiao)))";
+      $params[':regiao'] = $regiao;
+    }
+
+    $sql = "SELECT ps.ID, ps.Nome, ps.Planta_Hospedeira, ps.Localidade, ps.Data_Aparicao, ps.ID_Usuario,
+                   u.usuario AS nome_usuario
+            FROM Pragas_Surtos ps
+            LEFT JOIN Usuarios u ON ps.ID_Usuario = u.id
+            WHERE " . implode(' AND ', $condicoesWhere) . "
+            ORDER BY ps.Data_Aparicao DESC, ps.ID DESC";
     $stmt = $pdo->prepare($sql);
     foreach ($params as $k => $v) $stmt->bindValue($k, $v);
     $stmt->execute();
@@ -323,14 +333,16 @@ function buscarSurtosAdmin($pdo, $pragaID = null, $dataInicio = null, $dataFim =
 // Carregar surtos no carregamento inicial (admin vê todos por padrão, últimos 30 dias)
 $dataInicioSurtos = $_GET['data_inicio'] ?? date('Y-m-d', strtotime('-30 days'));
 $dataFimSurtos = $_GET['data_fim'] ?? date('Y-m-d');
-$pragaIDSurtosInicial = $_GET['praga_surtos'] ?? ''; // Filtro do bloco surtos (independente da praga do gráfico)
-$surtosLista = buscarSurtosAdmin($pdo, $pragaIDSurtosInicial ?: null, $dataInicioSurtos, $dataFimSurtos);
+$pragaIDSurtosInicial = $_GET['praga_surtos'] ?? '';
+$regiaoSurtosInicial = isset($_GET['regiao']) ? trim((string)$_GET['regiao']) : '';
+$surtosLista = buscarSurtosAdmin($pdo, $pragaIDSurtosInicial ?: null, $dataInicioSurtos, $dataFimSurtos, $regiaoSurtosInicial !== '' ? $regiaoSurtosInicial : null);
 $nomePragaSurtos = 'Todas as pragas';
 if ($pragaIDSurtosInicial) {
   foreach ($todasPragas as $pp) {
     if ($pp['ID'] == $pragaIDSurtosInicial) { $nomePragaSurtos = $pp['Nome']; break; }
   }
 }
+$nomeRegiaoSurtos = $regiaoSurtosInicial !== '' ? $regiaoSurtosInicial : 'Todas';
 
 // Preparar dados para o gráfico do admin usando o histórico de atualizações (sem limite de 30 dias)
 $dadosGrafico = [];
@@ -494,15 +506,22 @@ if ($acao === 'surtos') {
   $pragaIDSurtos = isset($_GET['praga_id']) ? $_GET['praga_id'] : null;
   $dataInicioAjax = $_GET['data_inicio'] ?? date('Y-m-d', strtotime('-30 days'));
   $dataFimAjax = $_GET['data_fim'] ?? date('Y-m-d');
-  $surtosAjax = buscarSurtosAdmin($pdo, $pragaIDSurtos ?: null, $dataInicioAjax, $dataFimAjax);
-  $pragaNomeAjax = ($pragaIDSurtos && $pragaSelecionada) ? htmlspecialchars($pragaSelecionada['Nome']) : 'Todas as pragas';
+  $regiaoAjax = isset($_GET['regiao']) ? trim((string)$_GET['regiao']) : '';
+  $surtosAjax = buscarSurtosAdmin($pdo, $pragaIDSurtos ?: null, $dataInicioAjax, $dataFimAjax, $regiaoAjax !== '' ? $regiaoAjax : null);
+  $pragaNomeAjax = 'Todas as pragas';
+  if ($pragaIDSurtos) {
+    foreach ($todasPragas as $pp) {
+      if ($pp['ID'] == $pragaIDSurtos) { $pragaNomeAjax = htmlspecialchars($pp['Nome']); break; }
+    }
+  }
+  $regiaoNomeAjax = $regiaoAjax !== '' ? htmlspecialchars($regiaoAjax) : 'Todas';
   $dataInicioFmt = date('d/m/Y', strtotime($dataInicioAjax));
   $dataFimFmt = date('d/m/Y', strtotime($dataFimAjax));
   if (!empty($surtosAjax)): ?>
     <div class="surtos-info-box">
       <p class="mb-1"><strong><i class="bi bi-bug-fill text-warning"></i> Praga:</strong> <?= $pragaNomeAjax; ?></p>
       <p class="mb-1"><strong><i class="bi bi-calendar-range"></i> Período:</strong> <?= $dataInicioFmt; ?> a <?= $dataFimFmt; ?></p>
-      <p class="mb-0"><strong><i class="bi bi-pin-map"></i> Região:</strong> Todas</p>
+      <p class="mb-0"><strong><i class="bi bi-pin-map"></i> Região:</strong> <?= $regiaoNomeAjax; ?></p>
     </div>
     <div class="list-group list-group-surtos" style="max-height: 220px; overflow-y: auto;">
       <?php foreach ($surtosAjax as $s): ?>
@@ -640,9 +659,9 @@ if ($acao === 'recomendacoes' && $pragaSelecionada) {
             <h5 class="mb-3"><i class="bi bi-exclamation-triangle-fill text-warning"></i> Surtos do Sistema</h5>
             <div class="surtos-filtros mb-3">
               <div class="row g-2 mb-2 align-items-end">
-                <div class="col-12 col-md-6 surtos-filtro-grupo">
+                <div class="col-12 col-sm-6 col-md-3 surtos-filtro-grupo">
                   <label class="form-label surtos-filtro-label" for="select-surtos">Praga</label>
-                  <select class="form-select form-select-sm" id="select-surtos" onchange="aplicarFiltroSurtos()">
+                  <select class="form-select form-select-sm" id="select-surtos">
                     <option value="" <?= !$pragaIDSurtosInicial ? 'selected' : ''; ?>>Todas as pragas</option>
                     <?php foreach ($todasPragas as $p): ?>
                       <option value="<?= $p['ID']; ?>" <?= ($pragaIDSurtosInicial == $p['ID']) ? 'selected' : ''; ?>>
@@ -651,11 +670,20 @@ if ($acao === 'recomendacoes' && $pragaSelecionada) {
                     <?php endforeach; ?>
                   </select>
                 </div>
-                <div class="col-6 col-md-3 surtos-filtro-grupo">
+                <div class="col-12 col-sm-6 col-md-3 surtos-filtro-grupo">
+                  <label class="form-label surtos-filtro-label" for="select-surtos-regiao">Região</label>
+                  <select class="form-select form-select-sm" id="select-surtos-regiao">
+                    <option value="" <?= $regiaoSurtosInicial === '' ? 'selected' : ''; ?>>Todas as regiões</option>
+                    <?php foreach ($regioesSistema as $reg): ?>
+                      <option value="<?= htmlspecialchars($reg); ?>" <?= $regiaoSurtosInicial === $reg ? 'selected' : ''; ?>><?= htmlspecialchars($reg); ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+                <div class="col-6 col-sm-6 col-md-2 surtos-filtro-grupo">
                   <label class="form-label surtos-filtro-label" for="surtos-data-inicio">Data início</label>
                   <input type="date" class="form-control form-control-sm" id="surtos-data-inicio" value="<?= htmlspecialchars($dataInicioSurtos); ?>">
                 </div>
-                <div class="col-6 col-md-3 surtos-filtro-grupo">
+                <div class="col-6 col-sm-6 col-md-2 surtos-filtro-grupo">
                   <label class="form-label surtos-filtro-label" for="surtos-data-fim">Data fim</label>
                   <input type="date" class="form-control form-control-sm" id="surtos-data-fim" value="<?= htmlspecialchars($dataFimSurtos); ?>">
                 </div>
@@ -674,7 +702,7 @@ if ($acao === 'recomendacoes' && $pragaSelecionada) {
                 <div class="surtos-info-box">
                   <p class="mb-1"><strong><i class="bi bi-bug-fill text-warning"></i> Praga:</strong> <?= htmlspecialchars($nomePragaSurtos); ?></p>
                   <p class="mb-1"><strong><i class="bi bi-calendar-range"></i> Período:</strong> <?= date('d/m/Y', strtotime($dataInicioSurtos)); ?> a <?= date('d/m/Y', strtotime($dataFimSurtos)); ?></p>
-                  <p class="mb-0"><strong><i class="bi bi-pin-map"></i> Região:</strong> Todas</p>
+                  <p class="mb-0"><strong><i class="bi bi-pin-map"></i> Região:</strong> <?= htmlspecialchars($nomeRegiaoSurtos); ?></p>
                 </div>
                 <div class="list-group list-group-surtos" style="max-height: 220px; overflow-y: auto;">
                   <?php foreach ($surtosLista as $s): ?>
@@ -886,6 +914,7 @@ if ($acao === 'recomendacoes' && $pragaSelecionada) {
     // Função para filtrar surtos via AJAX (praga + intervalo de datas)
     function aplicarFiltroSurtos() {
       const pragaID = document.getElementById('select-surtos').value;
+      const regiao = document.getElementById('select-surtos-regiao').value;
       const dataInicio = document.getElementById('surtos-data-inicio').value;
       const dataFim = document.getElementById('surtos-data-fim').value;
       const conteudo = document.getElementById('conteudo-surtos');
@@ -894,6 +923,7 @@ if ($acao === 'recomendacoes' && $pragaSelecionada) {
 
       let url = `dashboardadm.php?acao=surtos&data_inicio=${encodeURIComponent(dataInicio)}&data_fim=${encodeURIComponent(dataFim)}`;
       if (pragaID) url += `&praga_id=${encodeURIComponent(pragaID)}`;
+      if (regiao) url += `&regiao=${encodeURIComponent(regiao)}`;
 
       fetch(url)
         .then(response => response.text())

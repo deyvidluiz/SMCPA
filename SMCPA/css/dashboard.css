@@ -300,7 +300,19 @@ body {
 .card-relatorios { border-left: 4px solid #7c3aed; }
 .card-surtos { border-left: 4px solid #ca8a04; }
 
-/* Bloco Surtos - Admin */
+/* Bloco Surtos - Admin e User (Todos os surtos) */
+.surtos-block .nav-tabs .nav-link {
+  font-size: 0.875rem;
+  padding: 0.35rem 0.65rem;
+  color: #92400e;
+  border-color: rgba(202, 138, 4, 0.3);
+}
+.surtos-block .nav-tabs .nav-link.active {
+  background: rgba(202, 138, 4, 0.12);
+  border-color: rgba(202, 138, 4, 0.4);
+  color: #78350f;
+  font-weight: 500;
+}
 .surtos-block .surtos-filtros {
   background: rgba(202, 138, 4, 0.08);
   padding: 12px;
@@ -323,6 +335,10 @@ body {
 .surtos-filtro-grupo .form-select {
   flex: 1;
   min-height: 31px;
+  min-width: 0; /* permite encolher em telas pequenas */
+}
+.surtos-filtro-grupo .form-select {
+  max-width: 100%;
 }
 .surtos-info-box {
   background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);

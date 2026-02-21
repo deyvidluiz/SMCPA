@@ -513,6 +513,72 @@ try {
   error_log("Erro ao buscar surtos da região: " . $e->getMessage());
 }
 
+// Pragas do sistema (para filtro "Todos os surtos") — uma entrada por nome distinto
+$pragasSistema = [];
+try {
+  $stmtPragasSistema = $pdo->query("SELECT MIN(ID) AS ID, Nome FROM Pragas_Surtos GROUP BY Nome ORDER BY Nome ASC");
+  $pragasSistema = $stmtPragasSistema->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+  $pragasSistema = [];
+}
+
+// Regiões distintas do sistema (para filtro de surtos)
+$regioesSistema = [];
+try {
+  $stmtRegioes = $pdo->query("SELECT DISTINCT Localidade FROM Pragas_Surtos WHERE Localidade IS NOT NULL AND TRIM(Localidade) != '' ORDER BY Localidade ASC");
+  $regioesSistema = $stmtRegioes->fetchAll(PDO::FETCH_COLUMN);
+} catch (PDOException $e) {
+  $regioesSistema = [];
+}
+
+// Buscar TODOS os surtos do sistema (com filtro opcional de região)
+function buscarSurtosTodos($pdo, $pragaID = null, $dataInicio = null, $dataFim = null, $regiao = null) {
+  $dataFim = $dataFim ?? date('Y-m-d');
+  $dataInicio = $dataInicio ?? date('Y-m-d', strtotime('-30 days'));
+  try {
+    $params = [':dataInicio' => $dataInicio, ':dataFim' => $dataFim];
+    $condicaoData = "(ps.Data_Aparicao IS NULL OR (ps.Data_Aparicao >= :dataInicio AND ps.Data_Aparicao <= :dataFim))";
+    $condicoesWhere = [$condicaoData];
+
+    if ($pragaID) {
+      $stmtNome = $pdo->prepare("SELECT Nome FROM Pragas_Surtos WHERE ID = :id");
+      $stmtNome->bindParam(':id', $pragaID, PDO::PARAM_INT);
+      $stmtNome->execute();
+      $row = $stmtNome->fetch(PDO::FETCH_ASSOC);
+      if (!$row) return [];
+      $nomePraga = trim($row['Nome']);
+      $palavrasChave = extrairPalavrasChave($nomePraga);
+      $condicoesPraga = ["LOWER(TRIM(ps.Nome)) = LOWER(TRIM(:nomeExato))"];
+      $params[':nomeExato'] = $nomePraga;
+      foreach ($palavrasChave as $i => $pc) {
+        $key = ':pc' . $i;
+        $condicoesPraga[] = "LOWER(ps.Nome) LIKE " . $key;
+        $params[$key] = '%' . $pc . '%';
+      }
+      $condicoesWhere[] = "(" . implode(' OR ', $condicoesPraga) . ")";
+    }
+
+    if ($regiao !== null && $regiao !== '') {
+      $condicoesWhere[] = "(ps.Localidade IS NOT NULL AND LOWER(TRIM(ps.Localidade)) = LOWER(TRIM(:regiao)))";
+      $params[':regiao'] = $regiao;
+    }
+
+    $sql = "SELECT ps.ID, ps.Nome, ps.Planta_Hospedeira, ps.Localidade, ps.Data_Aparicao, ps.ID_Usuario,
+                   u.usuario AS nome_usuario
+            FROM Pragas_Surtos ps
+            LEFT JOIN Usuarios u ON ps.ID_Usuario = u.id
+            WHERE " . implode(' AND ', $condicoesWhere) . "
+            ORDER BY ps.Data_Aparicao DESC, ps.ID DESC";
+    $stmt = $pdo->prepare($sql);
+    foreach ($params as $k => $v) $stmt->bindValue($k, $v);
+    $stmt->execute();
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+  } catch (PDOException $e) {
+    error_log('buscarSurtosTodos: ' . $e->getMessage());
+    return [];
+  }
+}
+
 // Buscar alertas de pragas não lidos
 $alertasPragas = [];
 $totalAlertasNaoLidos = 0;
@@ -618,6 +684,57 @@ if ($acao === 'recomendacoes' && $pragaSelecionada) {
   <?php else: ?>
     <p class="text-muted">Nenhuma recomendação disponível.</p>
 <?php endif;
+  exit;
+}
+
+// Endpoint AJAX para bloco "Todos os surtos" (filtros: praga, região, data início, data fim)
+if ($acao === 'surtos') {
+  $pragaIDSurtos = isset($_GET['praga_id']) ? $_GET['praga_id'] : null;
+  $dataInicioSurtosAjax = $_GET['data_inicio'] ?? date('Y-m-d', strtotime('-30 days'));
+  $dataFimSurtosAjax = $_GET['data_fim'] ?? date('Y-m-d');
+  $regiaoSurtosAjax = isset($_GET['regiao']) ? trim((string)$_GET['regiao']) : '';
+  $surtosAjaxLista = buscarSurtosTodos($pdo, $pragaIDSurtos ?: null, $dataInicioSurtosAjax, $dataFimSurtosAjax, $regiaoSurtosAjax !== '' ? $regiaoSurtosAjax : null);
+  $nomePragaSurtosAjax = 'Todas as pragas';
+  if ($pragaIDSurtos) {
+    foreach ($pragasSistema as $pp) {
+      if ($pp['ID'] == $pragaIDSurtos) { $nomePragaSurtosAjax = $pp['Nome']; break; }
+    }
+  }
+  $nomeRegiaoSurtosAjax = $regiaoSurtosAjax !== '' ? htmlspecialchars($regiaoSurtosAjax) : 'Todas';
+  $dataInicioFmt = date('d/m/Y', strtotime($dataInicioSurtosAjax));
+  $dataFimFmt = date('d/m/Y', strtotime($dataFimSurtosAjax));
+  if (!empty($surtosAjaxLista)): ?>
+    <div class="surtos-info-box">
+      <p class="mb-1"><strong><i class="bi bi-bug-fill text-warning"></i> Praga:</strong> <?= htmlspecialchars($nomePragaSurtosAjax); ?></p>
+      <p class="mb-1"><strong><i class="bi bi-calendar-range"></i> Período:</strong> <?= $dataInicioFmt; ?> a <?= $dataFimFmt; ?></p>
+      <p class="mb-0"><strong><i class="bi bi-pin-map"></i> Região:</strong> <?= $nomeRegiaoSurtosAjax; ?></p>
+    </div>
+    <div class="list-group list-group-surtos" style="max-height: 220px; overflow-y: auto;">
+      <?php foreach ($surtosAjaxLista as $s): ?>
+        <a href="gerar_relatorio.php?id=<?= (int)$s['ID']; ?>" target="_blank" class="list-group-item list-group-item-surtos list-group-item-action" style="text-decoration: none;">
+          <div class="d-flex justify-content-between align-items-start flex-wrap gap-1">
+            <div class="flex-grow-1">
+              <h6 class="mb-1 surto-nome"><?= htmlspecialchars($s['Nome']); ?></h6>
+              <p class="mb-0 small text-muted"><i class="bi bi-flower1"></i> <?= htmlspecialchars($s['Planta_Hospedeira'] ?? ''); ?></p>
+              <p class="mb-0 small text-muted"><i class="bi bi-geo-alt"></i> <?= htmlspecialchars($s['Localidade'] ?? '-'); ?></p>
+              <?php if (!empty($s['nome_usuario'])): ?>
+                <p class="mb-0 small text-muted"><i class="bi bi-person"></i> <?= htmlspecialchars($s['nome_usuario']); ?></p>
+              <?php endif; ?>
+            </div>
+            <div class="d-flex flex-column align-items-end gap-1">
+              <small class="text-muted"><?= $s['Data_Aparicao'] ? date('d/m/Y', strtotime($s['Data_Aparicao'])) : '-'; ?></small>
+              <span class="btn btn-sm btn-outline-warning"><i class="bi bi-file-earmark-pdf"></i> Relatório</span>
+            </div>
+          </div>
+        </a>
+      <?php endforeach; ?>
+    </div>
+    <p class="mt-2 mb-0 small text-muted"><i class="bi bi-info-circle"></i> Total: <?= count($surtosAjaxLista); ?> surto(s) no período</p>
+  <?php else: ?>
+    <div class="alert alert-light border">
+      <i class="bi bi-info-circle text-muted"></i> Nenhum surto no período <?= $dataInicioFmt; ?> a <?= $dataFimFmt; ?>.
+    </div>
+  <?php endif;
   exit;
 }
 
@@ -917,62 +1034,114 @@ if ($acao === 'dados_grafico') {
             </div>
           </div>
 
-          <!-- Bloco Surtos na Região (Prevenção) -->
-          <div class="dashboard-item card-surtos orange-item" id="todos-surtos-regiao" style="overflow-y: auto;">
+          <!-- Bloco Surtos: Minha região + Todos os surtos (filtros) -->
+          <div class="dashboard-item card-surtos orange-item surtos-block" id="todos-surtos-regiao" style="overflow-y: auto;">
             <div class="d-flex justify-content-between align-items-center mb-3">
-              <h5 class="mb-0"><i class="bi bi-shield-exclamation text-warning"></i> Surtos na Região</h5>
+              <h5 class="mb-0"><i class="bi bi-shield-exclamation text-warning"></i> Surtos</h5>
               <a href="../cadastro/cadsurto.php" class="btn btn-sm btn-light" title="Cadastrar novo surto">
                 <i class="bi bi-plus-circle"></i> Novo Surto
               </a>
             </div>
-            <div style="max-height: 280px; overflow-y: auto;">
-              <?php if (!empty($todosSurtosRegiao)): ?>
-                <div class="alert alert-warning alert-dismissible fade show" role="alert" style="font-size: 0.85rem; padding: 8px 12px; margin-bottom: 10px;">
-                  <i class="bi bi-info-circle"></i> <strong>Atenção:</strong> Surtos registrados na sua região e regiões próximas.
-                  <button type="button" class="btn-close" data-bs-dismiss="alert" style="font-size: 0.7rem;"></button>
-                </div>
-                <?php if ($localidadeUsuario != 'Região não especificada'): ?>
-                  <div class="alert alert-info" style="font-size: 0.75rem; padding: 6px 10px; margin-bottom: 10px;">
-                    <small><i class="bi bi-geo-alt"></i> Buscando surtos para: <strong><?= htmlspecialchars($localidadeUsuario); ?></strong></small>
-                  </div>
-                <?php endif; ?>
-                <div class="list-group" style="max-height: 220px; overflow-y: auto;">
-                  <?php foreach ($todosSurtosRegiao as $surto): ?>
-                    <a href="gerar_relatorio.php?id=<?= $surto['ID']; ?>" target="_blank" class="list-group-item list-group-item-action" style="padding: 8px 12px; text-decoration: none; cursor: pointer;" onmouseover="this.style.backgroundColor='#f8f9fa'" onmouseout="this.style.backgroundColor=''">
-                      <div class="d-flex justify-content-between align-items-start">
-                        <div style="flex: 1;">
-                          <strong style="font-size: 0.9rem; color: #212529;"><?= htmlspecialchars($surto['Nome']); ?></strong>
-                          <?php if (!empty($surto['Planta_Hospedeira'])): ?>
-                            <br><small class="text-muted" style="font-size: 0.8rem;"><?= htmlspecialchars($surto['Planta_Hospedeira']); ?></small>
-                          <?php endif; ?>
-                          <br>
-                          <small class="text-muted">
-                            <i class="bi bi-calendar"></i> <?= date('d/m/Y', strtotime($surto['Data_Aparicao'])); ?>
-                            <i class="bi bi-geo-alt ms-2"></i> <?= htmlspecialchars($surto['Localidade']); ?>
-                          </small>
-                        </div>
-                        <div class="d-flex flex-column align-items-end gap-1">
-                          <span class="badge bg-warning text-dark">Surto</span>
-                          <small class="text-primary" style="font-size: 0.75rem;">
-                            <i class="bi bi-file-earmark-pdf"></i> Ver Relatório
-                          </small>
-                        </div>
+            <ul class="nav nav-tabs nav-tabs-sm mb-2" id="surtos-tab" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="surtos-regiao-tab" data-bs-toggle="tab" data-bs-target="#surtos-regiao-panel" type="button" role="tab">Minha região</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="surtos-todos-tab" data-bs-toggle="tab" data-bs-target="#surtos-todos-panel" type="button" role="tab">Todos os surtos</button>
+              </li>
+            </ul>
+            <div class="tab-content" id="surtos-tab-content">
+              <!-- Aba Minha região -->
+              <div class="tab-pane fade show active" id="surtos-regiao-panel" role="tabpanel">
+                <div style="max-height: 280px; overflow-y: auto;">
+                  <?php if (!empty($todosSurtosRegiao)): ?>
+                    <div class="alert alert-warning alert-dismissible fade show" role="alert" style="font-size: 0.85rem; padding: 8px 12px; margin-bottom: 10px;">
+                      <i class="bi bi-info-circle"></i> <strong>Atenção:</strong> Surtos na sua região e regiões próximas.
+                      <button type="button" class="btn-close" data-bs-dismiss="alert" style="font-size: 0.7rem;"></button>
+                    </div>
+                    <?php if ($localidadeUsuario != 'Região não especificada'): ?>
+                      <div class="alert alert-info" style="font-size: 0.75rem; padding: 6px 10px; margin-bottom: 10px;">
+                        <small><i class="bi bi-geo-alt"></i> Buscando surtos para: <strong><?= htmlspecialchars($localidadeUsuario); ?></strong></small>
                       </div>
-                    </a>
-                  <?php endforeach; ?>
-                </div>
-                <p class="mt-2 mb-0"><small class="text-muted">Total: <?= count($todosSurtosRegiao); ?> surtos registrados</small></p>
-              <?php else: ?>
-                <div class="alert alert-info" style="font-size: 0.9rem;">
-                  <i class="bi bi-info-circle"></i>
-                  <?php if ($localidadeUsuario != 'Região não especificada'): ?>
-                    <strong>Nenhum surto encontrado</strong> para a região: <strong><?= htmlspecialchars($localidadeUsuario); ?></strong> nos últimos 30 dias.
-                    <br><small class="text-muted">Certifique-se de que a localização no seu perfil está correta e que os surtos foram cadastrados com a mesma localização.</small>
+                    <?php endif; ?>
+                    <div class="list-group" style="max-height: 220px; overflow-y: auto;">
+                      <?php foreach ($todosSurtosRegiao as $surto): ?>
+                        <a href="gerar_relatorio.php?id=<?= $surto['ID']; ?>" target="_blank" class="list-group-item list-group-item-action" style="padding: 8px 12px; text-decoration: none; cursor: pointer;" onmouseover="this.style.backgroundColor='#f8f9fa'" onmouseout="this.style.backgroundColor=''">
+                          <div class="d-flex justify-content-between align-items-start">
+                            <div style="flex: 1;">
+                              <strong style="font-size: 0.9rem; color: #212529;"><?= htmlspecialchars($surto['Nome']); ?></strong>
+                              <?php if (!empty($surto['Planta_Hospedeira'])): ?>
+                                <br><small class="text-muted" style="font-size: 0.8rem;"><?= htmlspecialchars($surto['Planta_Hospedeira']); ?></small>
+                              <?php endif; ?>
+                              <br>
+                              <small class="text-muted">
+                                <i class="bi bi-calendar"></i> <?= date('d/m/Y', strtotime($surto['Data_Aparicao'])); ?>
+                                <i class="bi bi-geo-alt ms-2"></i> <?= htmlspecialchars($surto['Localidade']); ?>
+                              </small>
+                            </div>
+                            <div class="d-flex flex-column align-items-end gap-1">
+                              <span class="badge bg-warning text-dark">Surto</span>
+                              <small class="text-primary" style="font-size: 0.75rem;">
+                                <i class="bi bi-file-earmark-pdf"></i> Ver Relatório
+                              </small>
+                            </div>
+                          </div>
+                        </a>
+                      <?php endforeach; ?>
+                    </div>
+                    <p class="mt-2 mb-0"><small class="text-muted">Total: <?= count($todosSurtosRegiao); ?> surtos registrados</small></p>
                   <?php else: ?>
-                    <strong>Localização não configurada.</strong> Configure sua localização no seu <a href="perfil.php" class="alert-link">perfil</a> para ver surtos da sua região.
+                    <div class="alert alert-info" style="font-size: 0.9rem;">
+                      <i class="bi bi-info-circle"></i>
+                      <?php if ($localidadeUsuario != 'Região não especificada'): ?>
+                        <strong>Nenhum surto encontrado</strong> para a região: <strong><?= htmlspecialchars($localidadeUsuario); ?></strong> nos últimos 30 dias.
+                        <br><small class="text-muted">Certifique-se de que a localização no seu perfil está correta.</small>
+                      <?php else: ?>
+                        <strong>Localização não configurada.</strong> Configure no seu <a href="perfil.php" class="alert-link">perfil</a> para ver surtos da sua região.
+                      <?php endif; ?>
+                    </div>
                   <?php endif; ?>
                 </div>
-              <?php endif; ?>
+              </div>
+              <!-- Aba Todos os surtos (com filtros como no admin) -->
+              <div class="tab-pane fade" id="surtos-todos-panel" role="tabpanel">
+                <div class="surtos-filtros mb-3">
+                  <div class="row g-2 mb-2 align-items-end">
+                    <div class="col-12 col-sm-6 col-md-3 surtos-filtro-grupo">
+                      <label class="form-label surtos-filtro-label" for="select-surtos-todos">Praga</label>
+                      <select class="form-select form-select-sm" id="select-surtos-todos">
+                        <option value="">Todas as pragas</option>
+                        <?php foreach ($pragasSistema as $p): ?>
+                          <option value="<?= (int)$p['ID']; ?>"><?= htmlspecialchars($p['Nome']); ?></option>
+                        <?php endforeach; ?>
+                      </select>
+                    </div>
+                    <div class="col-12 col-sm-6 col-md-3 surtos-filtro-grupo">
+                      <label class="form-label surtos-filtro-label" for="select-surtos-todos-regiao">Região</label>
+                      <select class="form-select form-select-sm" id="select-surtos-todos-regiao">
+                        <option value="">Todas as regiões</option>
+                        <?php foreach ($regioesSistema as $reg): ?>
+                          <option value="<?= htmlspecialchars($reg); ?>"><?= htmlspecialchars($reg); ?></option>
+                        <?php endforeach; ?>
+                      </select>
+                    </div>
+                    <div class="col-6 col-sm-6 col-md-2 surtos-filtro-grupo">
+                      <label class="form-label surtos-filtro-label" for="surtos-todos-data-inicio">Data início</label>
+                      <input type="date" class="form-control form-control-sm" id="surtos-todos-data-inicio" value="<?= htmlspecialchars(date('Y-m-d', strtotime('-30 days'))); ?>">
+                    </div>
+                    <div class="col-6 col-sm-6 col-md-2 surtos-filtro-grupo">
+                      <label class="form-label surtos-filtro-label" for="surtos-todos-data-fim">Data fim</label>
+                      <input type="date" class="form-control form-control-sm" id="surtos-todos-data-fim" value="<?= htmlspecialchars(date('Y-m-d')); ?>">
+                    </div>
+                  </div>
+                  <button type="button" class="btn btn-sm btn-warning" onclick="aplicarFiltroSurtos()">
+                    <i class="bi bi-funnel"></i> Filtrar
+                  </button>
+                </div>
+                <div id="conteudo-surtos-todos" style="min-height: 80px;">
+                  <p class="text-muted small"><i class="bi bi-info-circle"></i> Clique em &quot;Filtrar&quot; para carregar os surtos do sistema.</p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1082,6 +1251,32 @@ if ($acao === 'dados_grafico') {
       // Recarregar a página com a praga selecionada
       window.location.href = pragaID ? `dashboard.php?praga_id=${pragaID}` : 'dashboard.php';
     }
+
+    // Filtrar e carregar surtos (bloco "Todos os surtos")
+    function aplicarFiltroSurtos() {
+      const pragaID = document.getElementById('select-surtos-todos').value;
+      const regiao = document.getElementById('select-surtos-todos-regiao').value;
+      const dataInicio = document.getElementById('surtos-todos-data-inicio').value;
+      const dataFim = document.getElementById('surtos-todos-data-fim').value;
+      const conteudo = document.getElementById('conteudo-surtos-todos');
+      if (!conteudo) return;
+      conteudo.innerHTML = '<div class="text-center py-4"><div class="spinner-border spinner-border-sm text-warning" role="status"></div><p class="mt-2 small text-muted">Carregando surtos...</p></div>';
+      let url = 'dashboard.php?acao=surtos&data_inicio=' + encodeURIComponent(dataInicio) + '&data_fim=' + encodeURIComponent(dataFim);
+      if (pragaID) url += '&praga_id=' + encodeURIComponent(pragaID);
+      if (regiao) url += '&regiao=' + encodeURIComponent(regiao);
+      fetch(url)
+        .then(function(r) { return r.text(); })
+        .then(function(html) { conteudo.innerHTML = html; })
+        .catch(function(err) {
+          console.error('Erro:', err);
+          conteudo.innerHTML = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Erro ao carregar surtos. Tente novamente.</div>';
+        });
+    }
+    // Ao exibir a aba "Todos os surtos", carregar surtos na primeira vez
+    document.getElementById('surtos-todos-tab').addEventListener('shown.bs.tab', function() {
+      const c = document.getElementById('conteudo-surtos-todos');
+      if (c && c.querySelector('.text-muted.small')) aplicarFiltroSurtos();
+    });
   </script>
 </body>
 

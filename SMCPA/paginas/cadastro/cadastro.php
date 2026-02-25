@@ -123,8 +123,12 @@ $cadastroSucesso = false;
 
 // Verifica se o formulário foi enviado
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Verifica se as variáveis foram definidas corretamente
-    if (isset($_POST['usuario'], $_POST['senha'], $_POST['email'])) {
+    // Caso típico de arquivo muito grande: PHP zera $_POST e $_FILES quando estoura post_max_size
+    if (empty($_POST) && empty($_FILES) && !empty($_SERVER['CONTENT_LENGTH'])) {
+        $mensagemErro = 'O arquivo enviado é maior que o limite permitido pelo servidor. Tente uma imagem menor ou fale com o suporte.';
+    }
+    // Verifica se as variáveis foram definidas corretamente (fluxo normal)
+    elseif (isset($_POST['usuario'], $_POST['senha'], $_POST['email'])) {
         // Obtém os dados do formulário (para manter preenchidos em caso de erro)
         $usuario = $_POST['usuario'];
         $senha   = $_POST['senha'];
@@ -144,74 +148,83 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $nomeImagem  = null; // valor padrão (sem imagem)
         $erroImagem  = false; // flag para controlar se houve erro na imagem
 
-        // Configurações de validação
-        $larguraMax  = 1920;
-        $alturaMax   = 1080;
-        $tamanhoMax  = 5 * 1024 * 1024; // 5MB
+        // Configurações de validação (até 10MB e 4K - 3840x2160; fotos menores continuam aceitas)
+        $larguraMax  = 3840;
+        $alturaMax   = 2160;
+        $tamanhoMax  = 10 * 1024 * 1024; // 10MB
         $errosUpload = [];
 
         // Se o usuário escolheu um arquivo, valida obrigatoriamente
         if ($arquivo && !empty($arquivo['name'])) {
             
-            // Verifica se o arquivo foi enviado corretamente
-            if (empty($arquivo['tmp_name']) || !file_exists($arquivo['tmp_name'])) {
-                $errosUpload[] = "Erro no upload do arquivo. Tente novamente.";
+            // Primeiro trata erros de upload do próprio PHP (ex.: maior que upload_max_filesize)
+            if (isset($arquivo['error']) && $arquivo['error'] === UPLOAD_ERR_INI_SIZE) {
+                $errosUpload[] = "A imagem excede o limite configurado no servidor (" . ini_get('upload_max_filesize') . ").";
+                $erroImagem = true;
+            } elseif (isset($arquivo['error']) && $arquivo['error'] !== UPLOAD_ERR_OK) {
+                $errosUpload[] = "Erro no upload da imagem (código " . $arquivo['error'] . ").";
                 $erroImagem = true;
             } else {
-                // Verifica tipo
-                if (!preg_match('/^(image)\/(jpeg|png|jpg)$/i', $arquivo['type'])) {
-                    $errosUpload[] = "A imagem deve ser JPG ou PNG.";
+                // Verifica se o arquivo foi enviado corretamente
+                if (empty($arquivo['tmp_name']) || !file_exists($arquivo['tmp_name'])) {
+                    $errosUpload[] = "Erro no upload do arquivo. Tente novamente.";
                     $erroImagem = true;
-                }
-
-                // Verifica dimensões
-                if (!$erroImagem) {
-                    $dimensoes = @getimagesize($arquivo['tmp_name']);
-                    if ($dimensoes !== false) {
-                        if ($dimensoes[0] > $larguraMax || $dimensoes[1] > $alturaMax) {
-                            $errosUpload[] = "A imagem precisa ter no máximo 1920x1080 pixels.";
-                            $erroImagem = true;
-                        }
-                    } else {
-                        $errosUpload[] = "Não foi possível ler as dimensões da imagem. Arquivo inválido.";
+                } else {
+                    // Verifica tipo
+                    if (!preg_match('/^(image)\/(jpeg|png|jpg)$/i', $arquivo['type'])) {
+                        $errosUpload[] = "A imagem deve ser JPG ou PNG.";
                         $erroImagem = true;
                     }
-                }
 
-                // Verifica tamanho
-                if (!$erroImagem && $arquivo['size'] > $tamanhoMax) {
-                    $errosUpload[] = "A imagem precisa ser menor que 5MB.";
-                    $erroImagem = true;
-                }
-
-                // Se não teve erro, faz o upload
-                if (!$erroImagem && count($errosUpload) == 0) {
-                    $extensao   = pathinfo($arquivo['name'], PATHINFO_EXTENSION);
-                    $baseNome   = normalizaString($usuario); // usa o nome do usuário no arquivo
-                    $nomeImagem = $baseNome . '_' . time() . '.' . $extensao;
-
-                    // Diretório de upload
-                    $diretorio = rtrim($_SERVER['DOCUMENT_ROOT'], '/\\') . '/uploads/usuarios/';
-                    if (!is_dir($diretorio)) {
-                        if (!@mkdir($diretorio, 0777, true)) {
-                            $errosUpload[] = "Erro: Não foi possível criar o diretório de upload.";
+                    // Verifica dimensões
+                    if (!$erroImagem) {
+                        $dimensoes = @getimagesize($arquivo['tmp_name']);
+                        if ($dimensoes !== false) {
+                            if ($dimensoes[0] > $larguraMax || $dimensoes[1] > $alturaMax) {
+                                $errosUpload[] = "A imagem precisa ter no máximo 3840x2160 pixels (4K).";
+                                $erroImagem = true;
+                            }
+                        } else {
+                            $errosUpload[] = "Não foi possível ler as dimensões da imagem. Arquivo inválido.";
                             $erroImagem = true;
                         }
                     }
 
-                    // Se o diretório existe, tenta fazer o upload
-                    if (!$erroImagem && is_dir($diretorio)) {
-                        $caminho = $diretorio . $nomeImagem;
+                    // Verifica tamanho (nosso limite de 10MB, se já passou pelo limite do servidor)
+                    if (!$erroImagem && $arquivo['size'] > $tamanhoMax) {
+                        $errosUpload[] = "A imagem precisa ser menor que 10MB.";
+                        $erroImagem = true;
+                    }
 
-                        if (!move_uploaded_file($arquivo['tmp_name'], $caminho)) {
-                            $errosUpload[] = "Erro ao salvar a imagem no servidor.";
+                    // Se não teve erro, faz o upload
+                    if (!$erroImagem && count($errosUpload) == 0) {
+                        $extensao   = pathinfo($arquivo['name'], PATHINFO_EXTENSION);
+                        $baseNome   = normalizaString($usuario); // usa o nome do usuário no arquivo
+                        $nomeImagem = $baseNome . '_' . time() . '.' . $extensao;
+
+                        // Diretório de upload
+                        $diretorio = rtrim($_SERVER['DOCUMENT_ROOT'], '/\\') . '/uploads/usuarios/';
+                        if (!is_dir($diretorio)) {
+                            if (!@mkdir($diretorio, 0777, true)) {
+                                $errosUpload[] = "Erro: Não foi possível criar o diretório de upload.";
+                                $erroImagem = true;
+                            }
+                        }
+
+                        // Se o diretório existe, tenta fazer o upload
+                        if (!$erroImagem && is_dir($diretorio)) {
+                            $caminho = $diretorio . $nomeImagem;
+
+                            if (!move_uploaded_file($arquivo['tmp_name'], $caminho)) {
+                                $errosUpload[] = "Erro ao salvar a imagem no servidor.";
+                                $erroImagem = true;
+                                $nomeImagem = null;
+                            }
+                        } else if (!is_dir($diretorio)) {
+                            $errosUpload[] = "Erro: Diretório de upload não encontrado.";
                             $erroImagem = true;
                             $nomeImagem = null;
                         }
-                    } else if (!is_dir($diretorio)) {
-                        $errosUpload[] = "Erro: Diretório de upload não encontrado.";
-                        $erroImagem = true;
-                        $nomeImagem = null;
                     }
                 }
             }
@@ -313,9 +326,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
       <small style="display: block; margin-top: 5px; color: #666;">Esta informação será usada para mostrar surtos próximos na sua região</small>
       
       <!-- Campo opcional de imagem -->
-      <label for="imagem">Foto de perfil (opcional) - JPG ou PNG até 5MB</label>
+      <label for="imagem">Foto de perfil (opcional) - JPG ou PNG até 10MB</label>
       <input type="file" id="imagem" name="imagem" accept="image/jpeg, image/png, image/jpg">
-      <small style="display: block; margin-top: 5px; color: #666;">Formatos aceitos: JPG, PNG. Tamanho máximo: 5MB. Dimensões máximas: 1920x1080px</small>
+      <small style="display: block; margin-top: 5px; color: #666;">Formatos aceitos: JPG, PNG. Tamanho máximo: 10MB. Dimensões máximas: 4K (3840x2160px). Fotos menores são aceitas.</small>
 
       <button type="submit">Cadastrar</button>
       <button type="button" onclick="window.location.href='../login/login.php'" style="margin-top: 10px; background: #6c757d; color: #fff; border: none; border-radius: 6px; cursor: pointer; width: 100%; padding: 10px; font-weight: 500;" onmouseover="this.style.background='#5a6268'" onmouseout="this.style.background='#6c757d'">Voltar</button>

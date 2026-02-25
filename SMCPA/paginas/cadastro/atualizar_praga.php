@@ -84,6 +84,13 @@ try {
     )");
 } catch (PDOException $e) {}
 
+// Detectar caso em que o corpo do POST foi descartado por exceder post_max_size
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($_POST) && empty($_FILES) && !empty($_SERVER['CONTENT_LENGTH'])) {
+    echo "<script type=\"text/javascript\">
+        alert('O arquivo enviado é maior que o limite permitido pelo servidor. Tente uma imagem menor (até " . addslashes(ini_get('post_max_size')) . ").');
+    </script>";
+}
+
 // Processar atualização
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['acao'] === 'atualizar') {
     try {
@@ -100,23 +107,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
         $media_pragas_planta = isset($_POST['media_pragas_planta']) && $_POST['media_pragas_planta'] !== '' ? floatval($_POST['media_pragas_planta']) : null;
         $severidade = isset($_POST['severidade']) ? trim($_POST['severidade']) : null;
         
-        // Processar imagem
+        // Processar imagem (até 10MB e 4K - 3840x2160; fotos menores aceitas)
         $imagemNome = $pragaOriginal['Imagem_Not_Null'];
         $diretorio = $_SERVER['DOCUMENT_ROOT'].'/uploads/pragas/';
+        $larguraMax = 3840;
+        $alturaMax = 2160;
+        $tamanhoMax = 10 * 1024 * 1024; // 10MB
+        $erroImagem = null;
         
         if (isset($_FILES['imagem']) && $_FILES['imagem']['error'] === UPLOAD_ERR_OK) {
             $arquivo = $_FILES['imagem'];
             $extensao = strtolower(pathinfo($arquivo['name'], PATHINFO_EXTENSION));
             $extensoesPermitidas = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-            
-            if (in_array($extensao, $extensoesPermitidas)) {
+
+            if (!in_array($extensao, $extensoesPermitidas)) {
+                $erroImagem = "Tipo de imagem inválido. Use JPG, PNG, GIF ou WEBP.";
+            } elseif ($arquivo['size'] > $tamanhoMax) {
+                $erroImagem = "A imagem precisa ser menor que 10MB.";
+            } else {
+                $dimensoes = @getimagesize($arquivo['tmp_name']);
+                if ($dimensoes === false) {
+                    $erroImagem = "Não foi possível ler as dimensões da imagem. Arquivo inválido.";
+                } elseif ($dimensoes[0] > $larguraMax || $dimensoes[1] > $alturaMax) {
+                    $erroImagem = "A imagem deve ter no máximo 4K (3840x2160 pixels).";
+                }
+            }
+
+            if ($erroImagem === null) {
                 $nomeArquivo = uniqid('praga_') . '.' . $extensao;
                 $caminhoCompleto = $diretorio . $nomeArquivo;
                 
                 if (move_uploaded_file($arquivo['tmp_name'], $caminhoCompleto)) {
                     $imagemNome = $nomeArquivo;
+                } else {
+                    $erroImagem = "Erro ao salvar a nova imagem no servidor.";
                 }
             }
+        } elseif (isset($_FILES['imagem']) && $_FILES['imagem']['error'] !== UPLOAD_ERR_NO_FILE) {
+            // O usuário tentou enviar uma imagem, mas o PHP barrou (por exemplo: maior que upload_max_filesize)
+            $erroImagem = "Erro no upload da imagem (possivelmente maior que o limite configurado no servidor).";
         }
         
         // Atualizar o registro existente (substitui os dados anteriores)
@@ -181,7 +210,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
                 // Usa dashboard padrão
             }
 
-            echo "<script type=\"text/javascript\">\n                alert('Praga atualizada com sucesso!');\n                window.location.href = '" . $dashboardUrl . "';\n            </script>";
+            $mensagemAtualizacao = 'Praga atualizada com sucesso!';
+            if (!empty($erroImagem)) {
+                $mensagemAtualizacao = 'Praga atualizada, mas a nova imagem NÃO foi salva: ' . $erroImagem;
+            }
+
+            echo "<script type=\"text/javascript\">
+                alert('" . addslashes($mensagemAtualizacao) . "');
+                window.location.href = '" . $dashboardUrl . "';
+            </script>";
             exit;
         } else {
             echo '<script type="text/javascript">alert("Erro ao atualizar a praga.");</script>';
@@ -295,6 +332,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
             <label>Nova Imagem (opcional - deixe em branco para manter a atual):
                 <input type="file" name="imagem" accept="image/*">
             </label>
+            <small class="text-muted d-block mt-1">Máx. 10MB, até 4K (3840x2160). JPG, PNG, GIF ou WebP. Fotos menores são aceitas.</small>
             <?php if (!empty($pragaOriginal['Imagem_Not_Null'])): ?>
                 <div class="mt-2">
                     <small class="text-muted">Imagem atual:</small><br>

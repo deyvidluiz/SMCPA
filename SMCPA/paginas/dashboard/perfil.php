@@ -131,11 +131,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['alterar_foto']) && $e
         
         // Validações
         $tiposPermitidos = ['image/jpeg', 'image/png', 'image/jpg'];
+        $tamanhoMax = 10 * 1024 * 1024; // 10MB
+        $larguraMax = 3840;  // 4K
+        $alturaMax = 2160;
         if (!in_array($arquivo['type'], $tiposPermitidos)) {
             $erro = "A imagem deve ser JPG ou PNG.";
-        } elseif ($arquivo['size'] > 5 * 1024 * 1024) { // 5MB
-            $erro = "A imagem precisa ser menor que 5MB.";
+        } elseif ($arquivo['size'] > $tamanhoMax) {
+            $erro = "A imagem precisa ser menor que 10MB.";
         } else {
+            $dimensoes = @getimagesize($arquivo['tmp_name']);
+            if ($dimensoes === false) {
+                $erro = "Não foi possível ler as dimensões da imagem. Arquivo inválido.";
+            } elseif ($dimensoes[0] > $larguraMax || $dimensoes[1] > $alturaMax) {
+                $erro = "A imagem deve ter no máximo 4K (3840x2160 pixels).";
+            }
+        }
+        if (!isset($erro)) {
             // Preparar diretório
             $diretorio = $_SERVER['DOCUMENT_ROOT'] . '/uploads/usuarios/';
             if (!is_dir($diretorio)) {
@@ -410,7 +421,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deletar_conta']) && $
                                 <i class="bi bi-camera"></i> Alterar Foto
                             </button>
                         </div>
-                        <small class="text-muted">Máximo 5MB - Formatos: JPG, PNG</small>
+                        <small class="text-muted">Máximo 10MB, até 4K (3840x2160) - Formatos: JPG, PNG. Fotos menores são aceitas.</small>
                     </form>
                 <?php endif; ?>
             </div>

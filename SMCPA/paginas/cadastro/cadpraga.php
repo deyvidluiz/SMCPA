@@ -175,9 +175,9 @@ class Upload
 
             $arquivo = isset($_FILES['imagem']) ? $_FILES['imagem'] : null;
 
-            $largura = 1920;
-            $altura = 1080;
-            $tamanho = 5 * 1024 * 1024; // 5MB
+            $largura = 3840;   // 4K
+            $altura = 2160;
+            $tamanho = 10 * 1024 * 1024; // 10MB
             $erros = [];
 
             if ($arquivo && !empty($arquivo['name'])) {
@@ -191,7 +191,7 @@ class Upload
                 $dimensoes = getimagesize($arquivo['tmp_name']);
                 if ($dimensoes !== false) {
                     if ($dimensoes[0] > $largura || $dimensoes[1] > $altura) {
-                        $erros[] = "A imagem precisa estar nas dimensões máximas de 1920x1080 pixels.";
+                        $erros[] = "A imagem precisa estar nas dimensões máximas de 3840x2160 pixels (4K).";
                     }
                 } else {
                     $erros[] = "Não foi possível ler as dimensões da imagem.";
@@ -199,7 +199,7 @@ class Upload
 
                 // Tamanho do arquivo
                 if ($arquivo['size'] > $tamanho) {
-                    $erros[] = "A imagem precisa ser menor que 5MB.";
+                    $erros[] = "A imagem precisa ser menor que 10MB.";
                 }
 
                 if (count($erros) == 0) {
@@ -518,7 +518,7 @@ $lista = $upload->querySelect();
 
 
                         <div class="arqimg">
-                            <label>Imagem (até 1920x1080, JPG ou PNG, máx. 5MB)*:
+                            <label>Imagem (até 4K 3840x2160, JPG ou PNG, máx. 10MB)*:
                                 <input type="file" name="imagem" accept="image/jpeg,image/png,image/jpg" required>
                             </label>
                         </div>
